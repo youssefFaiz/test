@@ -110,6 +110,7 @@ namespace NinjaTrader.NinjaScript.Indicators
                 LabelBullColor = Brushes.Black;
                 LabelBearColor = Brushes.Black;
                 LabelFontSize = 10;
+                LabelTextAlignment = TextAlignment.Right;
 
                 // CE Line Settings
                 BullCEColor = Brushes.Transparent;
@@ -135,7 +136,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
         protected override void OnBarUpdate()
         {
-            if (CurrentBars[0] < 3 || CurrentBars[1] < 3)
+            if (CurrentBars[0] < 4 || CurrentBars[1] < 4)
                 return;
 
             if (!ShowIndicator)
@@ -162,11 +163,17 @@ namespace NinjaTrader.NinjaScript.Indicators
         private void ProcessHTFData()
         {
             // Check if we have enough bars
-            if (CurrentBars[1] < 3)
+            if (CurrentBars[1] < 4)
                 return;
 
-            // Get data from 3 bars ago
+            // Get data from bars 1, 2, 3 (matching Pine Script behavior)
             int idx = 1; // BarsInProgress
+
+            double o3 = Opens[idx][3];
+            double h3 = Highs[idx][3];
+            double l3 = Lows[idx][3];
+            double c3 = Closes[idx][3];
+            DateTime t3 = Times[idx][3];
 
             double o2 = Opens[idx][2];
             double h2 = Highs[idx][2];
@@ -180,27 +187,21 @@ namespace NinjaTrader.NinjaScript.Indicators
             double c1 = Closes[idx][1];
             DateTime t1 = Times[idx][1];
 
-            double o0 = Opens[idx][0];
-            double h0 = Highs[idx][0];
-            double l0 = Lows[idx][0];
-            double c0 = Closes[idx][0];
-            DateTime t0 = Times[idx][0];
-
             // Validate timeframe
             if (LtfHide && !ValidateTimeframe())
                 return;
 
-            // Check for FVG pattern
-            // Bullish FVG: h0 < l2 (gap between bar 0 high and bar 2 low)
-            // Bearish FVG: l0 > h2 (gap between bar 0 low and bar 2 high)
+            // Check for FVG pattern (matching Pine Script: bar[1], bar[2], bar[3])
+            // Bullish FVG: h1 < l3 (gap between bar 1 high and bar 3 low)
+            // Bearish FVG: l1 > h3 (gap between bar 1 low and bar 3 high)
 
-            if (h0 < l2) // Bullish FVG
+            if (h1 < l3) // Bullish FVG
             {
-                CreateFVG(l2, h0, t2, true);
+                CreateFVG(l3, h1, t3, true);
             }
-            else if (l0 > h2) // Bearish FVG
+            else if (l1 > h3) // Bearish FVG
             {
-                CreateFVG(h2, l0, t2, false);
+                CreateFVG(h3, l1, t3, false);
             }
         }
 
@@ -306,11 +307,15 @@ namespace NinjaTrader.NinjaScript.Indicators
 
         private void DrawFVG(FVGData fvg)
         {
-            // Determine colors based on bullish/bearish
-            Brush boxColor = fvg.IsBullish ? GetBrushWithOpacity(BullBoxColor, BullBoxOpacity) : GetBrushWithOpacity(BearBoxColor, BearBoxOpacity);
-            Brush borderColor = fvg.IsBullish ? GetBrushWithOpacity(BullBorderColor, BullBorderOpacity) : GetBrushWithOpacity(BearBorderColor, BearBorderOpacity);
+            // Determine base colors (without opacity)
+            Brush boxColor = fvg.IsBullish ? BullBoxColor : BearBoxColor;
+            Brush borderColor = fvg.IsBullish ? BullBorderColor : BearBorderColor;
             Brush labelColor = fvg.IsBullish ? LabelBullColor : LabelBearColor;
             Brush ceColor = fvg.IsBullish ? BullCEColor : BearCEColor;
+
+            // Get opacity values
+            int boxOpacity = fvg.IsBullish ? BullBoxOpacity : BearBoxOpacity;
+            int borderOpacity = fvg.IsBullish ? BullBorderOpacity : BearBorderOpacity;
 
             // Calculate end time
             DateTime endTime;
@@ -334,14 +339,17 @@ namespace NinjaTrader.NinjaScript.Indicators
             if (startBarAgo < 0)
                 return;
 
-            // Draw Rectangle (Box)
+            // Draw Rectangle (Box) with proper opacity
             Draw.Rectangle(this, fvg.BoxTag, false, fvg.OpenTime, fvg.Open, endTime, fvg.Close,
-                borderColor, boxColor, BorderWidth);
+                borderColor, boxColor, boxOpacity);
 
             // Draw CE Line
             if (ceColor != Brushes.Transparent && ceColor.Opacity > 0)
             {
-                DateTime lineEndTime = endTime.AddMinutes(-CEPadding);
+                // Calculate line end time based on bar time difference
+                TimeSpan barDuration = Time[0] - Time[1];
+                DateTime lineEndTime = endTime - TimeSpan.FromTicks(barDuration.Ticks * CEPadding);
+
                 Draw.Line(this, fvg.LineTag, false, fvg.OpenTime, fvg.Middle, lineEndTime, fvg.Middle,
                     ceColor, DashStyleHelper.Dot, 1);
             }
@@ -350,7 +358,7 @@ namespace NinjaTrader.NinjaScript.Indicators
             if (!string.IsNullOrEmpty(fvg.LabelText))
             {
                 Draw.Text(this, fvg.TextTag, false, fvg.LabelText, endBarAgo, fvg.Close, 0,
-                    labelColor, new SimpleFont("Arial", LabelFontSize), TextAlignment.Right,
+                    labelColor, new SimpleFont("Arial", LabelFontSize), LabelTextAlignment,
                     Brushes.Transparent, Brushes.Transparent, 0);
             }
         }
@@ -507,7 +515,7 @@ namespace NinjaTrader.NinjaScript.Indicators
         public int BearBoxOpacity { get; set; }
 
         [NinjaScriptProperty]
-        [Range(1, 5)]
+        [Range(1, 3)]
         [Display(Name = "Border Width", Description = "Width of the box borders", Order = 1, GroupName = "4. Border Visuals")]
         public int BorderWidth { get; set; }
 
@@ -575,6 +583,10 @@ namespace NinjaTrader.NinjaScript.Indicators
         public int LabelFontSize { get; set; }
 
         [NinjaScriptProperty]
+        [Display(Name = "Label Text Position", Description = "Label text alignment (Left, Center, Right)", Order = 4, GroupName = "5. Label Visuals")]
+        public TextAlignment LabelTextAlignment { get; set; }
+
+        [NinjaScriptProperty]
         [XmlIgnore]
         [Display(Name = "Bullish CE Line Color", Description = "Color for bullish center equilibrium line", Order = 1, GroupName = "6. CE Line Visuals")]
         public Brush BullCEColor { get; set; }
@@ -614,18 +626,18 @@ namespace NinjaTrader.NinjaScript.Indicators
     public partial class Indicator : NinjaTrader.Gui.NinjaScript.IndicatorRenderBase
     {
         private FVGIndicator[] cacheFVGIndicator;
-        public FVGIndicator FVGIndicator(bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, Brush bullCEColor, Brush bearCEColor, int cEPadding)
+        public FVGIndicator FVGIndicator(bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, TextAlignment labelTextAlignment, Brush bullCEColor, Brush bearCEColor, int cEPadding)
         {
-            return FVGIndicator(Input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, bullCEColor, bearCEColor, cEPadding);
+            return FVGIndicator(Input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, labelTextAlignment, bullCEColor, bearCEColor, cEPadding);
         }
 
-        public FVGIndicator FVGIndicator(ISeries<double> input, bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, Brush bullCEColor, Brush bearCEColor, int cEPadding)
+        public FVGIndicator FVGIndicator(ISeries<double> input, bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, TextAlignment labelTextAlignment, Brush bullCEColor, Brush bearCEColor, int cEPadding)
         {
             if (cacheFVGIndicator != null)
                 for (int idx = 0; idx < cacheFVGIndicator.Length; idx++)
-                    if (cacheFVGIndicator[idx] != null && cacheFVGIndicator[idx].ShowIndicator == showIndicator && cacheFVGIndicator[idx].RemoveFilled == removeFilled && cacheFVGIndicator[idx].LtfHide == ltfHide && cacheFVGIndicator[idx].TimeframeValue == timeframeValue && cacheFVGIndicator[idx].TimeframeType == timeframeType && cacheFVGIndicator[idx].LabelText == labelText && cacheFVGIndicator[idx].MaxFVGCount == maxFVGCount && cacheFVGIndicator[idx].BullBoxColor == bullBoxColor && cacheFVGIndicator[idx].BullBoxOpacity == bullBoxOpacity && cacheFVGIndicator[idx].BearBoxColor == bearBoxColor && cacheFVGIndicator[idx].BearBoxOpacity == bearBoxOpacity && cacheFVGIndicator[idx].BorderWidth == borderWidth && cacheFVGIndicator[idx].BullBorderColor == bullBorderColor && cacheFVGIndicator[idx].BullBorderOpacity == bullBorderOpacity && cacheFVGIndicator[idx].BearBorderColor == bearBorderColor && cacheFVGIndicator[idx].BearBorderOpacity == bearBorderOpacity && cacheFVGIndicator[idx].LabelBullColor == labelBullColor && cacheFVGIndicator[idx].LabelBearColor == labelBearColor && cacheFVGIndicator[idx].LabelFontSize == labelFontSize && cacheFVGIndicator[idx].BullCEColor == bullCEColor && cacheFVGIndicator[idx].BearCEColor == bearCEColor && cacheFVGIndicator[idx].CEPadding == cEPadding && cacheFVGIndicator[idx].EqualsInput(input))
+                    if (cacheFVGIndicator[idx] != null && cacheFVGIndicator[idx].ShowIndicator == showIndicator && cacheFVGIndicator[idx].RemoveFilled == removeFilled && cacheFVGIndicator[idx].LtfHide == ltfHide && cacheFVGIndicator[idx].TimeframeValue == timeframeValue && cacheFVGIndicator[idx].TimeframeType == timeframeType && cacheFVGIndicator[idx].LabelText == labelText && cacheFVGIndicator[idx].MaxFVGCount == maxFVGCount && cacheFVGIndicator[idx].BullBoxColor == bullBoxColor && cacheFVGIndicator[idx].BullBoxOpacity == bullBoxOpacity && cacheFVGIndicator[idx].BearBoxColor == bearBoxColor && cacheFVGIndicator[idx].BearBoxOpacity == bearBoxOpacity && cacheFVGIndicator[idx].BorderWidth == borderWidth && cacheFVGIndicator[idx].BullBorderColor == bullBorderColor && cacheFVGIndicator[idx].BullBorderOpacity == bullBorderOpacity && cacheFVGIndicator[idx].BearBorderColor == bearBorderColor && cacheFVGIndicator[idx].BearBorderOpacity == bearBorderOpacity && cacheFVGIndicator[idx].LabelBullColor == labelBullColor && cacheFVGIndicator[idx].LabelBearColor == labelBearColor && cacheFVGIndicator[idx].LabelFontSize == labelFontSize && cacheFVGIndicator[idx].LabelTextAlignment == labelTextAlignment && cacheFVGIndicator[idx].BullCEColor == bullCEColor && cacheFVGIndicator[idx].BearCEColor == bearCEColor && cacheFVGIndicator[idx].CEPadding == cEPadding && cacheFVGIndicator[idx].EqualsInput(input))
                         return cacheFVGIndicator[idx];
-            return CacheIndicator<FVGIndicator>(new FVGIndicator(){ ShowIndicator = showIndicator, RemoveFilled = removeFilled, LtfHide = ltfHide, TimeframeValue = timeframeValue, TimeframeType = timeframeType, LabelText = labelText, MaxFVGCount = maxFVGCount, BullBoxColor = bullBoxColor, BullBoxOpacity = bullBoxOpacity, BearBoxColor = bearBoxColor, BearBoxOpacity = bearBoxOpacity, BorderWidth = borderWidth, BullBorderColor = bullBorderColor, BullBorderOpacity = bullBorderOpacity, BearBorderColor = bearBorderColor, BearBorderOpacity = bearBorderOpacity, LabelBullColor = labelBullColor, LabelBearColor = labelBearColor, LabelFontSize = labelFontSize, BullCEColor = bullCEColor, BearCEColor = bearCEColor, CEPadding = cEPadding }, input, ref cacheFVGIndicator);
+            return CacheIndicator<FVGIndicator>(new FVGIndicator(){ ShowIndicator = showIndicator, RemoveFilled = removeFilled, LtfHide = ltfHide, TimeframeValue = timeframeValue, TimeframeType = timeframeType, LabelText = labelText, MaxFVGCount = maxFVGCount, BullBoxColor = bullBoxColor, BullBoxOpacity = bullBoxOpacity, BearBoxColor = bearBoxColor, BearBoxOpacity = bearBoxOpacity, BorderWidth = borderWidth, BullBorderColor = bullBorderColor, BullBorderOpacity = bullBorderOpacity, BearBorderColor = bearBorderColor, BearBorderOpacity = bearBorderOpacity, LabelBullColor = labelBullColor, LabelBearColor = labelBearColor, LabelFontSize = labelFontSize, LabelTextAlignment = labelTextAlignment, BullCEColor = bullCEColor, BearCEColor = bearCEColor, CEPadding = cEPadding }, input, ref cacheFVGIndicator);
         }
     }
 }
@@ -634,14 +646,14 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 {
     public partial class MarketAnalyzerColumn : MarketAnalyzerColumnBase
     {
-        public Indicators.FVGIndicator FVGIndicator(bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, Brush bullCEColor, Brush bearCEColor, int cEPadding)
+        public Indicators.FVGIndicator FVGIndicator(bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, TextAlignment labelTextAlignment, Brush bullCEColor, Brush bearCEColor, int cEPadding)
         {
-            return indicator.FVGIndicator(Input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, bullCEColor, bearCEColor, cEPadding);
+            return indicator.FVGIndicator(Input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, labelTextAlignment, bullCEColor, bearCEColor, cEPadding);
         }
 
-        public Indicators.FVGIndicator FVGIndicator(ISeries<double> input , bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, Brush bullCEColor, Brush bearCEColor, int cEPadding)
+        public Indicators.FVGIndicator FVGIndicator(ISeries<double> input , bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, TextAlignment labelTextAlignment, Brush bullCEColor, Brush bearCEColor, int cEPadding)
         {
-            return indicator.FVGIndicator(input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, bullCEColor, bearCEColor, cEPadding);
+            return indicator.FVGIndicator(input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, labelTextAlignment, bullCEColor, bearCEColor, cEPadding);
         }
     }
 }
@@ -650,14 +662,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class Strategy : NinjaTrader.Gui.NinjaScript.StrategyRenderBase
     {
-        public Indicators.FVGIndicator FVGIndicator(bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, Brush bullCEColor, Brush bearCEColor, int cEPadding)
+        public Indicators.FVGIndicator FVGIndicator(bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, TextAlignment labelTextAlignment, Brush bullCEColor, Brush bearCEColor, int cEPadding)
         {
-            return indicator.FVGIndicator(Input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, bullCEColor, bearCEColor, cEPadding);
+            return indicator.FVGIndicator(Input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, labelTextAlignment, bullCEColor, bearCEColor, cEPadding);
         }
 
-        public Indicators.FVGIndicator FVGIndicator(ISeries<double> input , bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, Brush bullCEColor, Brush bearCEColor, int cEPadding)
+        public Indicators.FVGIndicator FVGIndicator(ISeries<double> input , bool showIndicator, bool removeFilled, bool ltfHide, int timeframeValue, string timeframeType, string labelText, int maxFVGCount, Brush bullBoxColor, int bullBoxOpacity, Brush bearBoxColor, int bearBoxOpacity, int borderWidth, Brush bullBorderColor, int bullBorderOpacity, Brush bearBorderColor, int bearBorderOpacity, Brush labelBullColor, Brush labelBearColor, int labelFontSize, TextAlignment labelTextAlignment, Brush bullCEColor, Brush bearCEColor, int cEPadding)
         {
-            return indicator.FVGIndicator(input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, bullCEColor, bearCEColor, cEPadding);
+            return indicator.FVGIndicator(input, showIndicator, removeFilled, ltfHide, timeframeValue, timeframeType, labelText, maxFVGCount, bullBoxColor, bullBoxOpacity, bearBoxColor, bearBoxOpacity, borderWidth, bullBorderColor, bullBorderOpacity, bearBorderColor, bearBorderOpacity, labelBullColor, labelBearColor, labelFontSize, labelTextAlignment, bullCEColor, bearCEColor, cEPadding);
         }
     }
 }
