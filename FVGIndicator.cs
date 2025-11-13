@@ -192,16 +192,16 @@ namespace NinjaTrader.NinjaScript.Indicators
                 return;
 
             // Check for FVG pattern (matching Pine Script: bar[1], bar[2], bar[3])
-            // Bullish FVG: h1 < l3 (gap between bar 1 high and bar 3 low)
-            // Bearish FVG: l1 > h3 (gap between bar 1 low and bar 3 high)
+            // Bullish FVG: l1 > h3 (gap between bar 1 low and bar 3 high)
+            // Bearish FVG: h1 < l3 (gap between bar 1 high and bar 3 low)
 
-            if (h1 < l3) // Bullish FVG
+            if (l1 > h3) // Bullish FVG
             {
-                CreateFVG(l3, h1, t3, true);
+                CreateFVG(h3, l1, t3, true);
             }
-            else if (l1 > h3) // Bearish FVG
+            else if (h1 < l3) // Bearish FVG
             {
-                CreateFVG(h3, l1, t3, false);
+                CreateFVG(l3, h1, t3, false);
             }
         }
 
