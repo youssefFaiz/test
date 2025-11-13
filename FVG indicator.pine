@@ -35,10 +35,6 @@ type Helper
 
 General_Settings settings     = General_Settings.new()
 FVG_Settings HTF_1_Settings   = FVG_Settings.new()
-FVG_Settings HTF_2_Settings   = FVG_Settings.new()
-FVG_Settings HTF_3_Settings   = FVG_Settings.new()
-FVG_Settings HTF_4_Settings   = FVG_Settings.new()
-FVG_Settings HTF_5_Settings   = FVG_Settings.new()
 
 htf_1                        = input.timeframe("1", "TF1", inline="htf1", group = "TIMEFRAMES")
 HTF_1_Settings.htf          := htf_1
@@ -69,33 +65,13 @@ ce_padding                  = input.int(2, title = "C.E. line padding", minval =
 Helper helper                       = Helper.new()
 
 var FVG_Structure FVG_1_Structure        = FVG_Structure.new()
-var FVG_Structure FVG_2_Structure        = FVG_Structure.new()
-var FVG_Structure FVG_3_Structure        = FVG_Structure.new()
-var FVG_Structure FVG_4_Structure        = FVG_Structure.new()
-var FVG_Structure FVG_5_Structure        = FVG_Structure.new()
 
 var array<FVG> FVGs_1              = array.new<FVG>()
-var array<FVG> FVGs_2              = array.new<FVG>()
-var array<FVG> FVGs_3              = array.new<FVG>()
-var array<FVG> FVGs_4              = array.new<FVG>()
-var array<FVG> FVGs_5              = array.new<FVG>()
 
 FVG_1_Structure.fvg                     := FVGs_1
 FVG_1_Structure.settings                := HTF_1_Settings
-FVG_2_Structure.fvg                     := FVGs_2
-FVG_2_Structure.settings                := HTF_2_Settings
-FVG_3_Structure.fvg                     := FVGs_3
-FVG_3_Structure.settings                := HTF_3_Settings
-FVG_4_Structure.fvg                     := FVGs_4
-FVG_4_Structure.settings                := HTF_4_Settings
-FVG_5_Structure.fvg                     := FVGs_5
-FVG_5_Structure.settings                := HTF_5_Settings
 
 var int TF_1  = 0
-
-
-var float daily_atr      = 0
-var float monthly_atr   = 0
 
 method Validtimeframe(Helper helper, tf) =>
     helper.name := tf
