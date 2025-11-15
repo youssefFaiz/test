@@ -1,0 +1,158 @@
+//@version=6
+indicator('MTF Sweep Detector', 'MTF Sweeps', max_lines_count=500, max_labels_count=500, overlay=true)
+
+//------------------------------------------------------------------------------
+//Settings
+//-----------------------------------------------------------------------------{
+len = input.int(5, 'Swings', minval=1, group='Settings')
+opt = input.string('Only Wicks', 'Detection Mode', options=['Only Wicks', 'Only Outbreaks & Retest', 'Wicks + Outbreaks & Retest'], group='Settings')
+mtf_enabled = input.bool(true, 'Enable Higher Timeframe', group='Settings')
+mtf_timeframe = input.timeframe('15', 'Higher Timeframe', group='Settings')
+show_current_tf = input.bool(true, 'Show Current TF Sweeps', group='Settings')
+
+// Current TF Colors
+colBl = input.color(#089981, 'Current TF Bull', group='Colors')
+colBr = input.color(#f23645, 'Current TF Bear', group='Colors')
+
+// HTF Colors
+htf_colBl = input.color(#00ff00, 'HTF Bull', group='Colors')
+htf_colBr = input.color(#ff0000, 'HTF Bear', group='Colors')
+
+oW = opt == 'Only Wicks'
+oO = opt == 'Only Outbreaks & Retest'
+
+n = bar_index
+
+//-----------------------------------------------------------------------------}      
+//UDT's
+//-----------------------------------------------------------------------------{
+type piv
+    float prc
+    int bix
+    bool brk
+    bool mit
+    bool tak
+    bool wic
+    bool is_htf
+
+//-----------------------------------------------------------------------------}      
+//Variables
+//-----------------------------------------------------------------------------{
+var array<piv> aPivH = array.new<piv>()
+var array<piv> aPivL = array.new<piv>()
+
+// HTF Variables
+var array<piv> htf_aPivH = array.new<piv>()
+var array<piv> htf_aPivL = array.new<piv>()
+
+//-----------------------------------------------------------------------------}      
+//Functions
+//-----------------------------------------------------------------------------{
+create_label(int d, bool is_htf, string tf) =>
+    sweep_type = d == 1 ? 'Bearish' : 'Bullish'
+    label_text = is_htf ? (sweep_type + ' ' + tf + ' Sweep') : (sweep_type + ' Sweep')
+    label_y = d == 1 ? high : low
+    label_color = is_htf ? (d == 1 ? htf_colBr : htf_colBl) : (d == 1 ? colBr : colBl)
+    label_style = d == 1 ? label.style_label_down : label.style_label_up 
+    
+    label.new(n, label_y, label_text, color=label_color, textcolor=color.white, style=label_style, size=size.small, textalign=text.align_center)
+
+// Function to process sweeps for any timeframe
+process_sweeps(array<piv> pivH_array, array<piv> pivL_array, ph_value, pl_value, is_htf = false, string tf = '', float curr_high = high, float curr_low = low, float curr_close = close) =>
+
+    bool bull_detected = false
+    bool bear_detected = false
+
+    if not na(ph_value)
+        new_piv = piv.new(ph_value, n - len, false, false, false, false, is_htf)
+        pivH_array.unshift(new_piv)
+
+    if not na(pl_value)
+        new_piv = piv.new(pl_value, n - len, false, false, false, false, is_htf)
+        pivL_array.unshift(new_piv)
+
+    // Process high pivots
+    if pivH_array.size() > 0
+        for i = pivH_array.size() - 1 to 0
+            get = pivH_array.get(i)
+            if not get.mit
+                if not get.brk
+                    if curr_close > get.prc
+                        if not oW
+                            get.brk := true
+                        else
+                            get.mit := true
+                    if not oO and not get.wic
+                        if curr_high > get.prc and curr_close < get.prc
+                            create_label(1, is_htf, tf)
+                            get.wic := true
+                            if is_htf
+                                bear_detected := true
+                else
+                    if curr_close < get.prc
+                        get.mit := true
+                    if not oW and curr_low < get.prc and curr_close > get.prc
+                        create_label(-1, is_htf, tf)
+                        get.tak := true
+                        if is_htf
+                            bull_detected := true
+
+            if n - get.bix > 2000 or get.mit or get.tak
+                pivH_array.remove(i)
+
+    // Process low pivots
+    if pivL_array.size() > 0
+        for i = pivL_array.size() - 1 to 0
+            get = pivL_array.get(i)
+            if not get.mit
+                if not get.brk
+                    if curr_close < get.prc
+                        if not oW
+                            get.brk := true
+                        else
+                            get.mit := true
+                    if not oO and not get.wic
+                        if curr_low < get.prc and curr_close > get.prc
+                            create_label(-1, is_htf, tf)
+                            get.wic := true
+                            if is_htf
+                                bull_detected := true
+                else
+                    if curr_close > get.prc
+                        get.mit := true
+                    if not oW and curr_high > get.prc and curr_close < get.prc
+                        create_label(1, is_htf, tf)
+                        get.tak := true
+                        if is_htf
+                            bear_detected := true
+
+            if n - get.bix > 2000 or get.mit or get.tak
+                pivL_array.remove(i)
+
+    [bull_detected, bear_detected]
+
+//-----------------------------------------------------------------------------}      
+//Execution
+//-----------------------------------------------------------------------------{
+
+// Check if MTF timeframe is valid
+is_mtf_valid = mtf_enabled and timeframe.in_seconds(mtf_timeframe) > timeframe.in_seconds()
+
+// Get HTF data
+[htf_ph, htf_pl, htf_high, htf_low, htf_close] = request.security(syminfo.tickerid, mtf_timeframe, [ta.pivothigh(len, len), ta.pivotlow(len, len), high, low, close], lookahead=barmerge.lookahead_off)
+
+// Current timeframe sweeps
+if show_current_tf
+    ph = ta.pivothigh(len, len)
+    pl = ta.pivotlow(len, len)
+    process_sweeps(aPivH, aPivL, ph, pl, false, timeframe.period)
+
+// Higher timeframe sweeps
+htf_bull = false
+htf_bear = false
+
+if mtf_enabled and is_mtf_valid
+    [b, r] = process_sweeps(htf_aPivH, htf_aPivL, htf_ph, htf_pl, true, mtf_timeframe, htf_high, htf_low, htf_close)
+    htf_bull := b
+    htf_bear := r
+
