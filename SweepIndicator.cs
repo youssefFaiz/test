@@ -53,6 +53,10 @@ namespace NinjaTrader.NinjaScript.Indicators
 
         private int arrowCounter = 0;
 
+        // Hardcoded values
+        private const int SwingLength = 5;
+        private const string DetectionModeValue = "Only Wicks";
+
         private enum DetectionMode
         {
             OnlyWicks,
@@ -81,15 +85,13 @@ namespace NinjaTrader.NinjaScript.Indicators
                 IsSuspendedWhileInactive = true;
 
                 // Settings
-                SwingLength = 5;
-                DetectionModeString = "Only Wicks";
                 EnableHTF = true;
                 HTFTimeframe = "15";
-                ShowCurrentTF = true;
+                ShowLTF = true;
 
-                // Current TF Colors
-                CurrentTFBullColor = Brushes.LimeGreen;
-                CurrentTFBearColor = Brushes.Red;
+                // LTF Colors
+                LTFBullColor = Brushes.LimeGreen;
+                LTFBearColor = Brushes.Red;
 
                 // HTF Colors
                 HTFBullColor = Brushes.Lime;
@@ -102,8 +104,8 @@ namespace NinjaTrader.NinjaScript.Indicators
                 htfPivotHighs = new List<PivotData>();
                 htfPivotLows = new List<PivotData>();
 
-                // Parse detection mode
-                switch (DetectionModeString)
+                // Parse detection mode (hardcoded)
+                switch (DetectionModeValue)
                 {
                     case "Only Wicks":
                         currentMode = DetectionMode.OnlyWicks;
@@ -148,10 +150,10 @@ namespace NinjaTrader.NinjaScript.Indicators
             if (CurrentBars[0] < SwingLength * 2 + 1)
                 return;
 
-            // Process current timeframe
-            if (BarsInProgress == 0 && ShowCurrentTF)
+            // Process lower timeframe (LTF)
+            if (BarsInProgress == 0 && ShowLTF)
             {
-                ProcessCurrentTF();
+                ProcessLTF();
             }
 
             // Process higher timeframe
@@ -168,7 +170,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
         #region Core Logic Methods
 
-        private void ProcessCurrentTF()
+        private void ProcessLTF()
         {
             // Detect pivot highs and lows
             double? pivotHigh = GetPivotHigh(0, SwingLength, SwingLength);
@@ -337,7 +339,7 @@ namespace NinjaTrader.NinjaScript.Indicators
             string tag = "Sweep_" + CurrentBar + "_" + arrowCounter++;
             Brush arrowColor = isHTF ?
                 (direction == 1 ? HTFBearColor : HTFBullColor) :
-                (direction == 1 ? CurrentTFBearColor : CurrentTFBullColor);
+                (direction == 1 ? LTFBearColor : LTFBullColor);
 
             if (direction == 1) // Bearish
             {
@@ -465,48 +467,39 @@ namespace NinjaTrader.NinjaScript.Indicators
         #region Properties
 
         [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name = "Swing Length", Description = "Number of bars for swing detection", Order = 1, GroupName = "1. Settings")]
-        public int SwingLength { get; set; }
-
-        [NinjaScriptProperty]
-        [Display(Name = "Detection Mode", Description = "Sweep detection mode", Order = 2, GroupName = "1. Settings")]
-        public string DetectionModeString { get; set; }
-
-        [NinjaScriptProperty]
-        [Display(Name = "Enable Higher Timeframe", Description = "Enable HTF sweep detection", Order = 3, GroupName = "1. Settings")]
+        [Display(Name = "Enable Higher Timeframe", Description = "Enable HTF sweep detection", Order = 1, GroupName = "1. Settings")]
         public bool EnableHTF { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Higher Timeframe", Description = "Higher timeframe (e.g., 15, 60, D)", Order = 4, GroupName = "1. Settings")]
+        [Display(Name = "Higher Timeframe", Description = "Higher timeframe (e.g., 15, 60, D)", Order = 2, GroupName = "1. Settings")]
         public string HTFTimeframe { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Show Current TF", Description = "Show current timeframe sweeps", Order = 5, GroupName = "1. Settings")]
-        public bool ShowCurrentTF { get; set; }
+        [Display(Name = "Show LTF", Description = "Show lower timeframe sweeps", Order = 3, GroupName = "1. Settings")]
+        public bool ShowLTF { get; set; }
 
         [NinjaScriptProperty]
         [XmlIgnore]
-        [Display(Name = "Current TF Bull", Description = "Color for current TF bullish sweeps", Order = 1, GroupName = "2. Colors")]
-        public Brush CurrentTFBullColor { get; set; }
+        [Display(Name = "LTF Bull", Description = "Color for LTF bullish sweeps", Order = 1, GroupName = "2. Colors")]
+        public Brush LTFBullColor { get; set; }
 
         [Browsable(false)]
-        public string CurrentTFBullColorSerializable
+        public string LTFBullColorSerializable
         {
-            get { return Serialize.BrushToString(CurrentTFBullColor); }
-            set { CurrentTFBullColor = Serialize.StringToBrush(value); }
+            get { return Serialize.BrushToString(LTFBullColor); }
+            set { LTFBullColor = Serialize.StringToBrush(value); }
         }
 
         [NinjaScriptProperty]
         [XmlIgnore]
-        [Display(Name = "Current TF Bear", Description = "Color for current TF bearish sweeps", Order = 2, GroupName = "2. Colors")]
-        public Brush CurrentTFBearColor { get; set; }
+        [Display(Name = "LTF Bear", Description = "Color for LTF bearish sweeps", Order = 2, GroupName = "2. Colors")]
+        public Brush LTFBearColor { get; set; }
 
         [Browsable(false)]
-        public string CurrentTFBearColorSerializable
+        public string LTFBearColorSerializable
         {
-            get { return Serialize.BrushToString(CurrentTFBearColor); }
-            set { CurrentTFBearColor = Serialize.StringToBrush(value); }
+            get { return Serialize.BrushToString(LTFBearColor); }
+            set { LTFBearColor = Serialize.StringToBrush(value); }
         }
 
         [NinjaScriptProperty]
@@ -544,18 +537,18 @@ namespace NinjaTrader.NinjaScript.Indicators
     public partial class Indicator : NinjaTrader.Gui.NinjaScript.IndicatorRenderBase
     {
         private SweepIndicator[] cacheSweepIndicator;
-        public SweepIndicator SweepIndicator(int swingLength, string detectionModeString, bool enableHTF, string hTFTimeframe, bool showCurrentTF, Brush currentTFBullColor, Brush currentTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
+        public SweepIndicator SweepIndicator(bool enableHTF, string hTFTimeframe, bool showLTF, Brush lTFBullColor, Brush lTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
         {
-            return SweepIndicator(Input, swingLength, detectionModeString, enableHTF, hTFTimeframe, showCurrentTF, currentTFBullColor, currentTFBearColor, hTFBullColor, hTFBearColor);
+            return SweepIndicator(Input, enableHTF, hTFTimeframe, showLTF, lTFBullColor, lTFBearColor, hTFBullColor, hTFBearColor);
         }
 
-        public SweepIndicator SweepIndicator(ISeries<double> input, int swingLength, string detectionModeString, bool enableHTF, string hTFTimeframe, bool showCurrentTF, Brush currentTFBullColor, Brush currentTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
+        public SweepIndicator SweepIndicator(ISeries<double> input, bool enableHTF, string hTFTimeframe, bool showLTF, Brush lTFBullColor, Brush lTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
         {
             if (cacheSweepIndicator != null)
                 for (int idx = 0; idx < cacheSweepIndicator.Length; idx++)
-                    if (cacheSweepIndicator[idx] != null && cacheSweepIndicator[idx].SwingLength == swingLength && cacheSweepIndicator[idx].DetectionModeString == detectionModeString && cacheSweepIndicator[idx].EnableHTF == enableHTF && cacheSweepIndicator[idx].HTFTimeframe == hTFTimeframe && cacheSweepIndicator[idx].ShowCurrentTF == showCurrentTF && cacheSweepIndicator[idx].CurrentTFBullColor == currentTFBullColor && cacheSweepIndicator[idx].CurrentTFBearColor == currentTFBearColor && cacheSweepIndicator[idx].HTFBullColor == hTFBullColor && cacheSweepIndicator[idx].HTFBearColor == hTFBearColor && cacheSweepIndicator[idx].EqualsInput(input))
+                    if (cacheSweepIndicator[idx] != null && cacheSweepIndicator[idx].EnableHTF == enableHTF && cacheSweepIndicator[idx].HTFTimeframe == hTFTimeframe && cacheSweepIndicator[idx].ShowLTF == showLTF && cacheSweepIndicator[idx].LTFBullColor == lTFBullColor && cacheSweepIndicator[idx].LTFBearColor == lTFBearColor && cacheSweepIndicator[idx].HTFBullColor == hTFBullColor && cacheSweepIndicator[idx].HTFBearColor == hTFBearColor && cacheSweepIndicator[idx].EqualsInput(input))
                         return cacheSweepIndicator[idx];
-            return CacheIndicator<SweepIndicator>(new SweepIndicator(){ SwingLength = swingLength, DetectionModeString = detectionModeString, EnableHTF = enableHTF, HTFTimeframe = hTFTimeframe, ShowCurrentTF = showCurrentTF, CurrentTFBullColor = currentTFBullColor, CurrentTFBearColor = currentTFBearColor, HTFBullColor = hTFBullColor, HTFBearColor = hTFBearColor }, input, ref cacheSweepIndicator);
+            return CacheIndicator<SweepIndicator>(new SweepIndicator(){ EnableHTF = enableHTF, HTFTimeframe = hTFTimeframe, ShowLTF = showLTF, LTFBullColor = lTFBullColor, LTFBearColor = lTFBearColor, HTFBullColor = hTFBullColor, HTFBearColor = hTFBearColor }, input, ref cacheSweepIndicator);
         }
     }
 }
@@ -564,14 +557,14 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 {
     public partial class MarketAnalyzerColumn : MarketAnalyzerColumnBase
     {
-        public Indicators.SweepIndicator SweepIndicator(int swingLength, string detectionModeString, bool enableHTF, string hTFTimeframe, bool showCurrentTF, Brush currentTFBullColor, Brush currentTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
+        public Indicators.SweepIndicator SweepIndicator(bool enableHTF, string hTFTimeframe, bool showLTF, Brush lTFBullColor, Brush lTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
         {
-            return indicator.SweepIndicator(Input, swingLength, detectionModeString, enableHTF, hTFTimeframe, showCurrentTF, currentTFBullColor, currentTFBearColor, hTFBullColor, hTFBearColor);
+            return indicator.SweepIndicator(Input, enableHTF, hTFTimeframe, showLTF, lTFBullColor, lTFBearColor, hTFBullColor, hTFBearColor);
         }
 
-        public Indicators.SweepIndicator SweepIndicator(ISeries<double> input , int swingLength, string detectionModeString, bool enableHTF, string hTFTimeframe, bool showCurrentTF, Brush currentTFBullColor, Brush currentTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
+        public Indicators.SweepIndicator SweepIndicator(ISeries<double> input , bool enableHTF, string hTFTimeframe, bool showLTF, Brush lTFBullColor, Brush lTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
         {
-            return indicator.SweepIndicator(input, swingLength, detectionModeString, enableHTF, hTFTimeframe, showCurrentTF, currentTFBullColor, currentTFBearColor, hTFBullColor, hTFBearColor);
+            return indicator.SweepIndicator(input, enableHTF, hTFTimeframe, showLTF, lTFBullColor, lTFBearColor, hTFBullColor, hTFBearColor);
         }
     }
 }
@@ -580,14 +573,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class Strategy : NinjaTrader.Gui.NinjaScript.StrategyRenderBase
     {
-        public Indicators.SweepIndicator SweepIndicator(int swingLength, string detectionModeString, bool enableHTF, string hTFTimeframe, bool showCurrentTF, Brush currentTFBullColor, Brush currentTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
+        public Indicators.SweepIndicator SweepIndicator(bool enableHTF, string hTFTimeframe, bool showLTF, Brush lTFBullColor, Brush lTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
         {
-            return indicator.SweepIndicator(Input, swingLength, detectionModeString, enableHTF, hTFTimeframe, showCurrentTF, currentTFBullColor, currentTFBearColor, hTFBullColor, hTFBearColor);
+            return indicator.SweepIndicator(Input, enableHTF, hTFTimeframe, showLTF, lTFBullColor, lTFBearColor, hTFBullColor, hTFBearColor);
         }
 
-        public Indicators.SweepIndicator SweepIndicator(ISeries<double> input , int swingLength, string detectionModeString, bool enableHTF, string hTFTimeframe, bool showCurrentTF, Brush currentTFBullColor, Brush currentTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
+        public Indicators.SweepIndicator SweepIndicator(ISeries<double> input , bool enableHTF, string hTFTimeframe, bool showLTF, Brush lTFBullColor, Brush lTFBearColor, Brush hTFBullColor, Brush hTFBearColor)
         {
-            return indicator.SweepIndicator(input, swingLength, detectionModeString, enableHTF, hTFTimeframe, showCurrentTF, currentTFBullColor, currentTFBearColor, hTFBullColor, hTFBearColor);
+            return indicator.SweepIndicator(input, enableHTF, hTFTimeframe, showLTF, lTFBullColor, lTFBearColor, hTFBullColor, hTFBearColor);
         }
     }
 }
