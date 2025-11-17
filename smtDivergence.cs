@@ -211,17 +211,44 @@ namespace NinjaTrader.NinjaScript.Indicators
 
                 ProcessPrimaryChart();
 
+                // When called from strategy (ChartControl == null), comparison symbols
+                // are loaded by the host but we need to process them manually here
+                // since we won't receive separate OnBarUpdate calls for them
+                if (ChartControl == null)
+                {
+                    if (CurrentBar % 100 == 0)
+                        Print($"SMT: Processing comparison symbols - Symbol1Index={symbol1Index}, Symbol2Index={symbol2Index}, BarsArray.Length={BarsArray.Length}");
+
+                    // Process Symbol 1 using the index set by strategy
+                    if (UseSymbol1 && symbol1Index > 0 && symbol1Index < BarsArray.Length)
+                    {
+                        if (CurrentBars[symbol1Index] >= PivotLookback * 2 + 1)
+                        {
+                            ProcessComparisonSymbol(symbol1Index, symbol1SwingHighs, symbol1SwingLows);
+                        }
+                    }
+
+                    // Process Symbol 2 using the index set by strategy
+                    if (UseSymbol2 && symbol2Index > 0 && symbol2Index < BarsArray.Length)
+                    {
+                        if (CurrentBars[symbol2Index] >= PivotLookback * 2 + 1)
+                        {
+                            ProcessComparisonSymbol(symbol2Index, symbol2SwingHighs, symbol2SwingLows);
+                        }
+                    }
+                }
+
                 // NEW: Update signal counters and set plot values
                 UpdateSignals();
             }
-            // Process Symbol 1
-            else if (UseSymbol1 && activeSeries == symbol1Index)
+            // Process Symbol 1 (only when running standalone with own data series)
+            else if (ChartControl != null && UseSymbol1 && activeSeries == symbol1Index)
             {
                 if (CurrentBars[symbol1Index] < PivotLookback * 2 + 1) return;
                 ProcessComparisonSymbol(symbol1Index, symbol1SwingHighs, symbol1SwingLows);
             }
-            // Process Symbol 2
-            else if (UseSymbol2 && activeSeries == symbol2Index)
+            // Process Symbol 2 (only when running standalone with own data series)
+            else if (ChartControl != null && UseSymbol2 && activeSeries == symbol2Index)
             {
                 if (CurrentBars[symbol2Index] < PivotLookback * 2 + 1) return;
                 ProcessComparisonSymbol(symbol2Index, symbol2SwingHighs, symbol2SwingLows);
@@ -267,6 +294,7 @@ namespace NinjaTrader.NinjaScript.Indicators
                 {
                     lastHighDivergenceBar = CurrentBar;
                     barsWithShortSignal = 0;
+                    Print($"SMT: HIGH DIVERGENCE DETECTED at Bar {CurrentBar}, Price {swingHigh:F2}");
                 }
 
                 // Draw label if divergence detected
@@ -302,6 +330,7 @@ namespace NinjaTrader.NinjaScript.Indicators
                 {
                     lastLowDivergenceBar = CurrentBar;
                     barsWithLongSignal = 0;
+                    Print($"SMT: LOW DIVERGENCE DETECTED at Bar {CurrentBar}, Price {swingLow:F2}");
                 }
 
                 // Draw label if divergence detected
@@ -321,6 +350,7 @@ namespace NinjaTrader.NinjaScript.Indicators
                 SwingPoint newHigh = new SwingPoint(swingHigh, CurrentBars[seriesIndex] - PivotLookback,
                     Times[seriesIndex][PivotLookback], true, isBearishCandle);
                 highs.Add(newHigh);
+                Print($"SMT Comparison Symbol {seriesIndex}: Pivot HIGH detected at Price:{swingHigh:F2}, Bar:{CurrentBars[seriesIndex] - PivotLookback}");
             }
 
             if (!double.IsNaN(swingLow))
@@ -329,6 +359,7 @@ namespace NinjaTrader.NinjaScript.Indicators
                 SwingPoint newLow = new SwingPoint(swingLow, CurrentBars[seriesIndex] - PivotLookback,
                     Times[seriesIndex][PivotLookback], false, isBearishCandle);
                 lows.Add(newLow);
+                Print($"SMT Comparison Symbol {seriesIndex}: Pivot LOW detected at Price:{swingLow:F2}, Bar:{CurrentBars[seriesIndex] - PivotLookback}");
             }
         }
 
