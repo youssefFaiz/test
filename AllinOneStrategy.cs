@@ -82,6 +82,36 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int sessionEndHour = 16;
         private int sessionEndMinute = 0;
 
+        // ===== 013. Time Frame Filter Settings =====
+        private bool useChartTimeframe = false;
+        private bool use1MinTimeframe = false;
+        private bool use2MinTimeframe = false;
+        private bool use3MinTimeframe = false;
+        private bool use5MinTimeframe = false;
+        private bool use15MinTimeframe = false;
+        private bool use30MinTimeframe = false;
+
+        // ===== 018. HeikenAshi Filter Settings =====
+        private bool useHeikenAshiFilter = false;
+
+        // HeikenAshi Filter Indicator Instances (for filter timeframes)
+        private HeikenAshi8 heikenAshiFilterChart;   // Chart timeframe
+        private HeikenAshi8 heikenAshiFilter1Min;    // 1 min
+        private HeikenAshi8 heikenAshiFilter2Min;    // 2 min
+        private HeikenAshi8 heikenAshiFilter3Min;    // 3 min
+        private HeikenAshi8 heikenAshiFilter5Min;    // 5 min
+        private HeikenAshi8 heikenAshiFilter15Min;   // 15 min
+        private HeikenAshi8 heikenAshiFilter30Min;   // 30 min
+
+        // Track which BarsArray index each filter timeframe uses
+        private int filterChartIndex = 0;   // Always primary series
+        private int filter1MinIndex = -1;
+        private int filter2MinIndex = -1;
+        private int filter3MinIndex = -1;
+        private int filter5MinIndex = -1;
+        private int filter15MinIndex = -1;
+        private int filter30MinIndex = -1;
+
         // ===== 021. R:R Risk Reward Settings =====
         private bool useBOSStopLossRR = true;
         private int bosStopLossPlusTicks = 2;
@@ -403,6 +433,64 @@ namespace NinjaTrader.NinjaScript.Strategies
                         AddDataSeries(BarsPeriodType.Minute, heikenAshiHTFTimeframe);
                     }
                 }
+
+                // ===== Add Filter Timeframe Data Series =====
+                // Only add if HeikenAshi filter is enabled
+                if (useHeikenAshiFilter)
+                {
+                    int nextIndex = 1; // Start after primary series (index 0)
+
+                    // Account for existing entry HTF series
+                    if (useHTFSweepEntry || useHTFSweepCombinedEntry || useSweepDisplayOnly)
+                        nextIndex++;
+
+                    if (useHTFHeikenAshiEntry || useHTFHeikenAshiCombinedEntry || useHTFHeikenAshiDisplayOnly)
+                    {
+                        bool htfAlreadyAdded = (useHTFSweepEntry || useHTFSweepCombinedEntry || useSweepDisplayOnly)
+                                              && (sweepHTFTimeframe == heikenAshiHTFTimeframe);
+                        if (!htfAlreadyAdded)
+                            nextIndex++;
+                    }
+
+                    // Add filter timeframes (skip Chart TF as it's index 0)
+                    // Note: Chart timeframe uses primary series (index 0), so no need to add
+
+                    if (use1MinTimeframe)
+                    {
+                        AddDataSeries(BarsPeriodType.Minute, 1);
+                        filter1MinIndex = nextIndex++;
+                    }
+
+                    if (use2MinTimeframe)
+                    {
+                        AddDataSeries(BarsPeriodType.Minute, 2);
+                        filter2MinIndex = nextIndex++;
+                    }
+
+                    if (use3MinTimeframe)
+                    {
+                        AddDataSeries(BarsPeriodType.Minute, 3);
+                        filter3MinIndex = nextIndex++;
+                    }
+
+                    if (use5MinTimeframe)
+                    {
+                        AddDataSeries(BarsPeriodType.Minute, 5);
+                        filter5MinIndex = nextIndex++;
+                    }
+
+                    if (use15MinTimeframe)
+                    {
+                        AddDataSeries(BarsPeriodType.Minute, 15);
+                        filter15MinIndex = nextIndex++;
+                    }
+
+                    if (use30MinTimeframe)
+                    {
+                        AddDataSeries(BarsPeriodType.Minute, 30);
+                        filter30MinIndex = nextIndex++;
+                    }
+                }
             }
             else if (State == State.DataLoaded)
             {
@@ -427,6 +515,54 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     heikenAshiHTF = HeikenAshi8(BarsArray[htfIndex]);
+                }
+
+                // ===== Initialize HeikenAshi Filter Indicators =====
+                if (useHeikenAshiFilter)
+                {
+                    // Chart timeframe (always primary series index 0)
+                    if (useChartTimeframe)
+                    {
+                        heikenAshiFilterChart = HeikenAshi8();
+                        Print($"Filter: Initialized Chart TF HeikenAshi on BarsArray[0]");
+                    }
+
+                    // Other timeframes use their tracked indices
+                    if (use1MinTimeframe && filter1MinIndex > 0)
+                    {
+                        heikenAshiFilter1Min = HeikenAshi8(BarsArray[filter1MinIndex]);
+                        Print($"Filter: Initialized 1-Min HeikenAshi on BarsArray[{filter1MinIndex}]");
+                    }
+
+                    if (use2MinTimeframe && filter2MinIndex > 0)
+                    {
+                        heikenAshiFilter2Min = HeikenAshi8(BarsArray[filter2MinIndex]);
+                        Print($"Filter: Initialized 2-Min HeikenAshi on BarsArray[{filter2MinIndex}]");
+                    }
+
+                    if (use3MinTimeframe && filter3MinIndex > 0)
+                    {
+                        heikenAshiFilter3Min = HeikenAshi8(BarsArray[filter3MinIndex]);
+                        Print($"Filter: Initialized 3-Min HeikenAshi on BarsArray[{filter3MinIndex}]");
+                    }
+
+                    if (use5MinTimeframe && filter5MinIndex > 0)
+                    {
+                        heikenAshiFilter5Min = HeikenAshi8(BarsArray[filter5MinIndex]);
+                        Print($"Filter: Initialized 5-Min HeikenAshi on BarsArray[{filter5MinIndex}]");
+                    }
+
+                    if (use15MinTimeframe && filter15MinIndex > 0)
+                    {
+                        heikenAshiFilter15Min = HeikenAshi8(BarsArray[filter15MinIndex]);
+                        Print($"Filter: Initialized 15-Min HeikenAshi on BarsArray[{filter15MinIndex}]");
+                    }
+
+                    if (use30MinTimeframe && filter30MinIndex > 0)
+                    {
+                        heikenAshiFilter30Min = HeikenAshi8(BarsArray[filter30MinIndex]);
+                        Print($"Filter: Initialized 30-Min HeikenAshi on BarsArray[{filter30MinIndex}]");
+                    }
                 }
             }
         }
@@ -761,6 +897,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print($"AllowMultipleTrades: {allowMultipleTrades}");
                 Print($"MaxPositionsAllowed: {maxPositionsAllowed}");
 
+                // ===== FILTER CHECK: HeikenAshi Filter =====
+                if (useHeikenAshiFilter)
+                {
+                    bool isAllowed = CheckHeikenAshiFilter(triggerSignal.IsLong);
+                    if (!isAllowed)
+                    {
+                        Print($"Trade BLOCKED by HeikenAshi Filter: {(triggerSignal.IsLong ? "LONG" : "SHORT")} trade not allowed by filter");
+                        return;
+                    }
+                }
+
                 // Check if multiple trades are allowed
                 if (!allowMultipleTrades && Position.MarketPosition != MarketPosition.Flat)
                 {
@@ -1032,6 +1179,154 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print($"ERROR in ExecuteEntry: {ex.Message}");
                 Print($"Stack Trace: {ex.StackTrace}");
             }
+        }
+
+        // ===== HeikenAshi Filter Check =====
+        private bool CheckHeikenAshiFilter(bool isLongTrade)
+        {
+            // If no filter timeframes are selected, allow all trades
+            if (!useChartTimeframe && !use1MinTimeframe && !use2MinTimeframe &&
+                !use3MinTimeframe && !use5MinTimeframe && !use15MinTimeframe && !use30MinTimeframe)
+            {
+                Print($"HeikenAshi Filter: No timeframes selected - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
+                return true;
+            }
+
+            bool allFiltersAgree = true;
+            int filtersChecked = 0;
+
+            // Check Chart Timeframe
+            if (useChartTimeframe && heikenAshiFilterChart != null)
+            {
+                int signal = heikenAshiFilterChart.signal[0];  // 1=bullish, 2=bearish
+                filtersChecked++;
+
+                if (isLongTrade && signal != 1)  // LONG trade but filter is NOT bullish
+                {
+                    Print($"HeikenAshi Filter BLOCKED: Chart TF is {(signal == 2 ? "BEARISH" : "NEUTRAL")}, blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && signal != 2)  // SHORT trade but filter is NOT bearish
+                {
+                    Print($"HeikenAshi Filter BLOCKED: Chart TF is {(signal == 1 ? "BULLISH" : "NEUTRAL")}, blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+            }
+
+            // Check 1-Min Timeframe
+            if (use1MinTimeframe && heikenAshiFilter1Min != null && filter1MinIndex > 0)
+            {
+                int signal = heikenAshiFilter1Min.signal[0];
+                filtersChecked++;
+
+                if (isLongTrade && signal != 1)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 1-Min is {(signal == 2 ? "BEARISH" : "NEUTRAL")}, blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && signal != 2)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 1-Min is {(signal == 1 ? "BULLISH" : "NEUTRAL")}, blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+            }
+
+            // Check 2-Min Timeframe
+            if (use2MinTimeframe && heikenAshiFilter2Min != null && filter2MinIndex > 0)
+            {
+                int signal = heikenAshiFilter2Min.signal[0];
+                filtersChecked++;
+
+                if (isLongTrade && signal != 1)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 2-Min is {(signal == 2 ? "BEARISH" : "NEUTRAL")}, blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && signal != 2)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 2-Min is {(signal == 1 ? "BULLISH" : "NEUTRAL")}, blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+            }
+
+            // Check 3-Min Timeframe
+            if (use3MinTimeframe && heikenAshiFilter3Min != null && filter3MinIndex > 0)
+            {
+                int signal = heikenAshiFilter3Min.signal[0];
+                filtersChecked++;
+
+                if (isLongTrade && signal != 1)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 3-Min is {(signal == 2 ? "BEARISH" : "NEUTRAL")}, blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && signal != 2)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 3-Min is {(signal == 1 ? "BULLISH" : "NEUTRAL")}, blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+            }
+
+            // Check 5-Min Timeframe
+            if (use5MinTimeframe && heikenAshiFilter5Min != null && filter5MinIndex > 0)
+            {
+                int signal = heikenAshiFilter5Min.signal[0];
+                filtersChecked++;
+
+                if (isLongTrade && signal != 1)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 5-Min is {(signal == 2 ? "BEARISH" : "NEUTRAL")}, blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && signal != 2)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 5-Min is {(signal == 1 ? "BULLISH" : "NEUTRAL")}, blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+            }
+
+            // Check 15-Min Timeframe
+            if (use15MinTimeframe && heikenAshiFilter15Min != null && filter15MinIndex > 0)
+            {
+                int signal = heikenAshiFilter15Min.signal[0];
+                filtersChecked++;
+
+                if (isLongTrade && signal != 1)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 15-Min is {(signal == 2 ? "BEARISH" : "NEUTRAL")}, blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && signal != 2)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 15-Min is {(signal == 1 ? "BULLISH" : "NEUTRAL")}, blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+            }
+
+            // Check 30-Min Timeframe
+            if (use30MinTimeframe && heikenAshiFilter30Min != null && filter30MinIndex > 0)
+            {
+                int signal = heikenAshiFilter30Min.signal[0];
+                filtersChecked++;
+
+                if (isLongTrade && signal != 1)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 30-Min is {(signal == 2 ? "BEARISH" : "NEUTRAL")}, blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && signal != 2)
+                {
+                    Print($"HeikenAshi Filter BLOCKED: 30-Min is {(signal == 1 ? "BULLISH" : "NEUTRAL")}, blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+            }
+
+            if (allFiltersAgree)
+            {
+                Print($"HeikenAshi Filter PASSED: All {filtersChecked} filter timeframe(s) agree - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
+            }
+
+            return allFiltersAgree;
         }
 
         // ===== BOS Detection Logic (TradingView Style) =====
@@ -3606,6 +3901,72 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             get { return sessionEndMinute; }
             set { sessionEndMinute = Math.Max(0, Math.Min(59, value)); }
+        }
+
+        // ===== 013. Time Frame Filter Settings =====
+        [NinjaScriptProperty]
+        [Display(Name="013.01 Use Chart Timeframe", Order=130101, GroupName="013. ===Time Frame Filter===")]
+        public bool UseChartTimeframe
+        {
+            get { return useChartTimeframe; }
+            set { useChartTimeframe = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="013.02 Use 1 Min", Order=130102, GroupName="013. ===Time Frame Filter===")]
+        public bool Use1MinTimeframe
+        {
+            get { return use1MinTimeframe; }
+            set { use1MinTimeframe = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="013.03 Use 2 Min", Order=130103, GroupName="013. ===Time Frame Filter===")]
+        public bool Use2MinTimeframe
+        {
+            get { return use2MinTimeframe; }
+            set { use2MinTimeframe = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="013.04 Use 3 Min", Order=130104, GroupName="013. ===Time Frame Filter===")]
+        public bool Use3MinTimeframe
+        {
+            get { return use3MinTimeframe; }
+            set { use3MinTimeframe = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="013.05 Use 5 Min", Order=130105, GroupName="013. ===Time Frame Filter===")]
+        public bool Use5MinTimeframe
+        {
+            get { return use5MinTimeframe; }
+            set { use5MinTimeframe = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="013.06 Use 15 Min", Order=130106, GroupName="013. ===Time Frame Filter===")]
+        public bool Use15MinTimeframe
+        {
+            get { return use15MinTimeframe; }
+            set { use15MinTimeframe = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="013.07 Use 30 Min", Order=130107, GroupName="013. ===Time Frame Filter===")]
+        public bool Use30MinTimeframe
+        {
+            get { return use30MinTimeframe; }
+            set { use30MinTimeframe = value; }
+        }
+
+        // ===== 018. HeikenAshi Filter Settings =====
+        [NinjaScriptProperty]
+        [Display(Name="018.01 Use HeikenAshi as Filter", Order=180101, GroupName="018. ===HeikenAshi Filter===")]
+        public bool UseHeikenAshiFilter
+        {
+            get { return useHeikenAshiFilter; }
+            set { useHeikenAshiFilter = value; }
         }
 
         // ===== 021. R:R Risk Reward Settings =====
