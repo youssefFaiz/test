@@ -86,7 +86,7 @@ namespace NinjaTrader.NinjaScript.Indicators
             // Detect swings using the swing algorithm
             DetectSwings();
 
-            // Calculate zone boundaries
+            // Calculate zone boundaries and draw
             if (swingHighPrice > 0 && swingLowPrice > 0)
             {
                 CalculateZones();
@@ -94,11 +94,8 @@ namespace NinjaTrader.NinjaScript.Indicators
                 // Check if current price is in premium or discount zone
                 CheckPriceInZone();
 
-                // Draw zones on last bar
-                if (CurrentBar == Count - 1)
-                {
-                    DrawZones();
-                }
+                // Draw zones on every bar to keep them visible
+                DrawZones();
             }
         }
 
@@ -150,17 +147,13 @@ namespace NinjaTrader.NinjaScript.Indicators
 
         private void CalculateZones()
         {
-            double range = swingHighPrice - swingLowPrice;
-
-            // Premium zone: top 5% to 50% of range
+            // Premium zone: from swing high to equilibrium (top 50% of range)
             premiumTop = swingHighPrice;
-            premiumBottom = swingHighPrice - (range * 0.05);
-
-            // Equilibrium: 50% level
             equilibrium = (swingHighPrice + swingLowPrice) / 2.0;
+            premiumBottom = equilibrium;
 
-            // Discount zone: bottom 5% to 50% of range
-            discountTop = swingLowPrice + (range * 0.05);
+            // Discount zone: from equilibrium to swing low (bottom 50% of range)
+            discountTop = equilibrium;
             discountBottom = swingLowPrice;
         }
 
@@ -168,67 +161,68 @@ namespace NinjaTrader.NinjaScript.Indicators
         {
             double currentPrice = Close[0];
 
-            // Check if in premium zone (above equilibrium, closer to swing high)
-            IsInPremiumZone = currentPrice >= equilibrium && currentPrice <= premiumTop;
+            // Check if in premium zone (from equilibrium to swing high)
+            IsInPremiumZone = currentPrice >= equilibrium && currentPrice <= swingHighPrice;
 
-            // Check if in discount zone (below equilibrium, closer to swing low)
-            IsInDiscountZone = currentPrice <= equilibrium && currentPrice >= discountBottom;
+            // Check if in discount zone (from swing low to equilibrium)
+            IsInDiscountZone = currentPrice >= swingLowPrice && currentPrice <= equilibrium;
         }
 
         private void DrawZones()
         {
-            // Clear previous drawings
-            RemoveDrawObjects();
+            // Calculate barsAgo from absolute bar numbers
+            int leftBarsAgo = CurrentBar - Math.Min(swingHighBar, swingLowBar);
 
-            int leftBar = Math.Min(swingHighBar, swingLowBar);
-            int rightBar = CurrentBar + 20; // Extend 20 bars to the right
+            // Use time-based drawing to extend into the future
+            DateTime startTime = Time[leftBarsAgo];
+            DateTime endTime = Time[0].AddMinutes(BarsPeriod.Value * 20); // Extend 20 bars into future
 
             // Draw Premium Zone (Pro mode: line + filled box)
             // Premium line at top
             Draw.Line(this, "PremiumLine", false,
-                leftBar, premiumTop,
-                rightBar, premiumTop,
+                startTime, premiumTop,
+                endTime, premiumTop,
                 PremiumColor, DashStyleHelper.Solid, 2);
 
             // Premium filled box (from top to equilibrium)
             Draw.Rectangle(this, "PremiumBox", false,
-                leftBar, premiumTop,
-                rightBar, equilibrium,
+                startTime, premiumTop,
+                endTime, equilibrium,
                 PremiumColor, PremiumColor, 20);
 
             // Draw Equilibrium line
             Draw.Line(this, "EquilibriumLine", false,
-                leftBar, equilibrium,
-                rightBar, equilibrium,
-                Brushes.Gray, DashStyleHelper.Solid, 1);
+                startTime, equilibrium,
+                endTime, equilibrium,
+                Brushes.Silver, DashStyleHelper.Solid, 1);
 
             // Draw Discount Zone (Pro mode: line + filled box)
             // Discount line at bottom
             Draw.Line(this, "DiscountLine", false,
-                leftBar, discountBottom,
-                rightBar, discountBottom,
+                startTime, discountBottom,
+                endTime, discountBottom,
                 DiscountColor, DashStyleHelper.Solid, 2);
 
             // Discount filled box (from equilibrium to bottom)
             Draw.Rectangle(this, "DiscountBox", false,
-                leftBar, equilibrium,
-                rightBar, discountBottom,
+                startTime, equilibrium,
+                endTime, discountBottom,
                 DiscountColor, DiscountColor, 20);
 
-            // Draw labels
-            Draw.Text(this, "PremiumLabel", false, "Premium",
-                rightBar, premiumTop, 0, PremiumColor,
-                new SimpleFont("Arial", 10), TextAlignment.Left,
+            // Draw labels at the right side
+            Draw.Text(this, "PremiumLabel", "Premium",
+                0, premiumTop, 20, PremiumColor,
+                new SimpleFont("Arial", 10), TextAlignment.Right,
                 Brushes.Transparent, Brushes.Transparent, 0);
 
-            Draw.Text(this, "EquilibriumLabel", false, "Equilibrium",
-                rightBar, equilibrium, 0, Brushes.Gray,
-                new SimpleFont("Arial", 10), TextAlignment.Left,
+            Draw.Text(this, "EquilibriumLabel", "Equilibrium",
+                0, equilibrium, 20, Brushes.Silver,
+                new SimpleFont("Arial", 10), TextAlignment.Right,
                 Brushes.Transparent, Brushes.Transparent, 0);
 
-            Draw.Text(this, "DiscountLabel", false, "Discount",
-                rightBar, discountBottom, 0, DiscountColor,
-                new SimpleFont("Arial", 10), TextAlignment.Left,
+            Draw.Text(this, "DiscountLabel", "Discount",
+                0, discountBottom, 20, DiscountColor,
+                new SimpleFont("Arial", 10), TextAlignment.Right,
                 Brushes.Transparent, Brushes.Transparent, 0);
         }
 
