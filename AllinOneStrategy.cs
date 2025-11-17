@@ -1482,18 +1482,22 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void UpdateSwingPointsForTimeframe(int barsIndex, List<SwingPointData> swingHistory, string timeframeName, Brush labelColor)
         {
-            // Detect swing highs and lows using built-in Swing indicator for specific timeframe
+            // For HTF, only check on first bar (BarsInProgress check is already done in caller)
+            // For primary series, always check
             if (CurrentBars[barsIndex] < swingPointsSensitivity * 2)
                 return;
 
             try
             {
-                // Check for new swing high on this timeframe
-                double? swingHigh = Swing(BarsArray[barsIndex], swingPointsSensitivity).SwingHigh[0];
+                // Use simple Swing() call - works on current BarsInProgress series
+                double? swingHigh = Swing(swingPointsSensitivity).SwingHigh[0];
+                double? swingLow = Swing(swingPointsSensitivity).SwingLow[0];
+
+                // Check for new swing high
                 if (swingHigh != null && swingHigh > 0)
                 {
-                    // Check if this is a new swing point (not already recorded)
-                    bool isNew = !swingHistory.Any(sp => sp.IsHigh && sp.Price == swingHigh.Value && Math.Abs(CurrentBars[barsIndex] - sp.BarIndex) < swingPointsSensitivity * 3);
+                    // Check if this is a new swing point (not already recorded for this timeframe)
+                    bool isNew = !swingHistory.Any(sp => sp.IsHigh && Math.Abs(sp.Price - swingHigh.Value) < TickSize * 0.5);
 
                     if (isNew)
                     {
@@ -1510,7 +1514,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ClassifySwingPoint(newSwingHigh, swingHistory);
 
                         swingHistory.Add(newSwingHigh);
-                        Print($"Swing Filter ({timeframeName}): New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, HTF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
+                        Print($"Swing Filter ({timeframeName}): New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, TF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
 
                         // Draw label on primary chart (only on the first bar of HTF period)
                         if (showSwingLabels && newSwingHigh.Type != null)
@@ -1520,12 +1524,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // Check for new swing low on this timeframe
-                double? swingLow = Swing(BarsArray[barsIndex], swingPointsSensitivity).SwingLow[0];
+                // Check for new swing low
                 if (swingLow != null && swingLow > 0)
                 {
-                    // Check if this is a new swing point (not already recorded)
-                    bool isNew = !swingHistory.Any(sp => !sp.IsHigh && sp.Price == swingLow.Value && Math.Abs(CurrentBars[barsIndex] - sp.BarIndex) < swingPointsSensitivity * 3);
+                    // Check if this is a new swing point (not already recorded for this timeframe)
+                    bool isNew = !swingHistory.Any(sp => !sp.IsHigh && Math.Abs(sp.Price - swingLow.Value) < TickSize * 0.5);
 
                     if (isNew)
                     {
@@ -1542,7 +1545,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ClassifySwingPoint(newSwingLow, swingHistory);
 
                         swingHistory.Add(newSwingLow);
-                        Print($"Swing Filter ({timeframeName}): New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, HTF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
+                        Print($"Swing Filter ({timeframeName}): New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, TF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
 
                         // Draw label on primary chart (only on the first bar of HTF period)
                         if (showSwingLabels && newSwingLow.Type != null)
