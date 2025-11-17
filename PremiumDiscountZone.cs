@@ -209,15 +209,21 @@ namespace NinjaTrader.NinjaScript.Indicators
                 endTime, discountBottom,
                 Brushes.Transparent, DiscountColor, 90);
 
-            // Draw labels at the right side
-            Draw.Text(this, "PremiumLabel", "Premium",
-                0, premiumTop, 20, PremiumColor);
+            // Draw labels at the right side (using correct Draw.Text signature)
+            Draw.Text(this, "PremiumLabel", false, "Premium",
+                0, premiumTop, 20, PremiumColor,
+                new SimpleFont("Arial", 10), TextAlignment.Left,
+                Brushes.Transparent, Brushes.Transparent, 0);
 
-            Draw.Text(this, "EquilibriumLabel", "Equilibrium",
-                0, equilibrium, 20, Brushes.Silver);
+            Draw.Text(this, "EquilibriumLabel", false, "Equilibrium",
+                0, equilibrium, 20, Brushes.Silver,
+                new SimpleFont("Arial", 10), TextAlignment.Left,
+                Brushes.Transparent, Brushes.Transparent, 0);
 
-            Draw.Text(this, "DiscountLabel", "Discount",
-                0, discountBottom, 20, DiscountColor);
+            Draw.Text(this, "DiscountLabel", false, "Discount",
+                0, discountBottom, 20, DiscountColor,
+                new SimpleFont("Arial", 10), TextAlignment.Left,
+                Brushes.Transparent, Brushes.Transparent, 0);
         }
 
         #region Properties
