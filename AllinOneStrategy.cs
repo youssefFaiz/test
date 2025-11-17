@@ -181,15 +181,40 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int smtLineWidth = 2;
         private Brush smtLabelTextColor = Brushes.White;
 
-        // SMT Indicator instances (one per timeframe)
-        private SMTDivergenceIndicator smtFilterChart;
-        private SMTDivergenceIndicator smtFilter1Min;
-        private SMTDivergenceIndicator smtFilter2Min;
-        private SMTDivergenceIndicator smtFilter3Min;
-        private SMTDivergenceIndicator smtFilter5Min;
-        private SMTDivergenceIndicator smtFilter15Min;
-        private SMTDivergenceIndicator smtFilter30Min;
-        private SMTDivergenceIndicator smtFilterCustom;
+        // SMT Internal Data Structures (embedded logic, not using indicator)
+        private class SMTSwingPoint
+        {
+            public double Price { get; set; }
+            public int BarIndex { get; set; }
+            public DateTime Time { get; set; }
+            public bool IsHigh { get; set; }
+
+            public SMTSwingPoint(double price, int barIndex, DateTime time, bool isHigh)
+            {
+                Price = price;
+                BarIndex = barIndex;
+                Time = time;
+                IsHigh = isHigh;
+            }
+        }
+
+        // SMT swing point lists for primary chart
+        private List<SMTSwingPoint> smtPrimarySwingHighs;
+        private List<SMTSwingPoint> smtPrimarySwingLows;
+
+        // SMT swing point lists for Symbol 1
+        private List<SMTSwingPoint> smtSymbol1SwingHighs;
+        private List<SMTSwingPoint> smtSymbol1SwingLows;
+
+        // SMT swing point lists for Symbol 2
+        private List<SMTSwingPoint> smtSymbol2SwingHighs;
+        private List<SMTSwingPoint> smtSymbol2SwingLows;
+
+        // SMT signal tracking
+        private int smtLastHighDivergenceBar = -1;
+        private int smtLastLowDivergenceBar = -1;
+        private int smtLineCounter = 0;
+        private int smtLabelCounter = 0;
 
         // ===== 021. R:R Risk Reward Settings =====
         private bool useBOSStopLossRR = true;
@@ -677,109 +702,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // ===== Initialize SMT-Divergence Filter Indicators =====
+                // ===== Initialize SMT-Divergence Filter (Embedded Logic) =====
                 if (useSMTDivergenceFilter)
                 {
-                    Print("=== SMT-Divergence Filter Initialization ===");
+                    Print("=== SMT-Divergence Filter Initialization (Embedded) ===");
                     Print($"SMT Symbol1 Index: {smtSymbol1Index}, Symbol2 Index: {smtSymbol2Index}");
 
-                    // Chart timeframe (always primary series index 0)
-                    if (useChartTimeframe)
-                    {
-                        smtFilterChart = SMTDivergenceIndicator(smtPivotLookback, smtUseSymbol1, smtSymbol1Name,
-                            smtUseSymbol2, smtSymbol2Name, smtCandleDirectionValidation, smtRemoveBrokenSMTs,
-                            smtShortSignalBars, smtLongSignalBars, smtSwingHighColor, smtSwingLowColor,
-                            smtLineWidth, smtLabelTextColor);
+                    // Initialize swing point lists
+                    smtPrimarySwingHighs = new List<SMTSwingPoint>();
+                    smtPrimarySwingLows = new List<SMTSwingPoint>();
+                    smtSymbol1SwingHighs = new List<SMTSwingPoint>();
+                    smtSymbol1SwingLows = new List<SMTSwingPoint>();
+                    smtSymbol2SwingHighs = new List<SMTSwingPoint>();
+                    smtSymbol2SwingLows = new List<SMTSwingPoint>();
 
-                        // Set symbol indices so indicator uses strategy's data series
-                        if (smtSymbol1Index > 0)
-                            smtFilterChart.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0)
-                            smtFilterChart.SetSymbol2Index(smtSymbol2Index);
-
-                        if (showSMTIndicator)
-                            AddChartIndicator(smtFilterChart);
-
-                        Print($"Filter: Initialized Chart TF SMT-Divergence on BarsArray[0]");
-                    }
-
-                    // Other timeframes use their tracked indices
-                    if (use1MinTimeframe && filter1MinIndex > 0)
-                    {
-                        smtFilter1Min = SMTDivergenceIndicator(BarsArray[filter1MinIndex], smtPivotLookback,
-                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
-                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
-                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
-                        if (smtSymbol1Index > 0) smtFilter1Min.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0) smtFilter1Min.SetSymbol2Index(smtSymbol2Index);
-                        Print($"Filter: Initialized 1-Min SMT-Divergence on BarsArray[{filter1MinIndex}]");
-                    }
-
-                    if (use2MinTimeframe && filter2MinIndex > 0)
-                    {
-                        smtFilter2Min = SMTDivergenceIndicator(BarsArray[filter2MinIndex], smtPivotLookback,
-                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
-                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
-                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
-                        if (smtSymbol1Index > 0) smtFilter2Min.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0) smtFilter2Min.SetSymbol2Index(smtSymbol2Index);
-                        Print($"Filter: Initialized 2-Min SMT-Divergence on BarsArray[{filter2MinIndex}]");
-                    }
-
-                    if (use3MinTimeframe && filter3MinIndex > 0)
-                    {
-                        smtFilter3Min = SMTDivergenceIndicator(BarsArray[filter3MinIndex], smtPivotLookback,
-                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
-                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
-                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
-                        if (smtSymbol1Index > 0) smtFilter3Min.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0) smtFilter3Min.SetSymbol2Index(smtSymbol2Index);
-                        Print($"Filter: Initialized 3-Min SMT-Divergence on BarsArray[{filter3MinIndex}]");
-                    }
-
-                    if (use5MinTimeframe && filter5MinIndex > 0)
-                    {
-                        smtFilter5Min = SMTDivergenceIndicator(BarsArray[filter5MinIndex], smtPivotLookback,
-                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
-                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
-                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
-                        if (smtSymbol1Index > 0) smtFilter5Min.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0) smtFilter5Min.SetSymbol2Index(smtSymbol2Index);
-                        Print($"Filter: Initialized 5-Min SMT-Divergence on BarsArray[{filter5MinIndex}]");
-                    }
-
-                    if (use15MinTimeframe && filter15MinIndex > 0)
-                    {
-                        smtFilter15Min = SMTDivergenceIndicator(BarsArray[filter15MinIndex], smtPivotLookback,
-                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
-                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
-                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
-                        if (smtSymbol1Index > 0) smtFilter15Min.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0) smtFilter15Min.SetSymbol2Index(smtSymbol2Index);
-                        Print($"Filter: Initialized 15-Min SMT-Divergence on BarsArray[{filter15MinIndex}]");
-                    }
-
-                    if (use30MinTimeframe && filter30MinIndex > 0)
-                    {
-                        smtFilter30Min = SMTDivergenceIndicator(BarsArray[filter30MinIndex], smtPivotLookback,
-                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
-                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
-                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
-                        if (smtSymbol1Index > 0) smtFilter30Min.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0) smtFilter30Min.SetSymbol2Index(smtSymbol2Index);
-                        Print($"Filter: Initialized 30-Min SMT-Divergence on BarsArray[{filter30MinIndex}]");
-                    }
-
-                    if (useCustomTimeframe && filterCustomIndex > 0)
-                    {
-                        smtFilterCustom = SMTDivergenceIndicator(BarsArray[filterCustomIndex], smtPivotLookback,
-                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
-                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
-                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
-                        if (smtSymbol1Index > 0) smtFilterCustom.SetSymbol1Index(smtSymbol1Index);
-                        if (smtSymbol2Index > 0) smtFilterCustom.SetSymbol2Index(smtSymbol2Index);
-                        Print($"Filter: Initialized Custom {customTimeframeMinutes}-Min SMT-Divergence on BarsArray[{filterCustomIndex}]");
-                    }
+                    Print($"SMT Filter: Initialized swing point tracking for primary chart and comparison symbols");
                 }
             }
         }
@@ -806,6 +743,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (useSwingPointsFilter)
                 {
                     UpdateSwingPointsForFilter();
+                }
+
+                // Update SMT Divergence Detection (if enabled)
+                if (useSMTDivergenceFilter)
+                {
+                    ProcessSMTDivergence();
                 }
 
                 // Check for BOS signals
@@ -1998,7 +1941,312 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
+        // ===== SMT Divergence Detection Methods =====
+
+        private void ProcessSMTDivergence()
+        {
+            // Need enough bars for pivot detection
+            if (CurrentBars[0] < smtPivotLookback * 2 + 1)
+                return;
+
+            // Process primary chart for pivots
+            ProcessSMTPrimaryChart();
+
+            // Process comparison symbols
+            if (smtUseSymbol1 && smtSymbol1Index > 0 && smtSymbol1Index < BarsArray.Length)
+            {
+                if (CurrentBars[smtSymbol1Index] >= smtPivotLookback * 2 + 1)
+                {
+                    ProcessSMTComparisonSymbol(smtSymbol1Index, smtSymbol1SwingHighs, smtSymbol1SwingLows, "Symbol1");
+                }
+            }
+
+            if (smtUseSymbol2 && smtSymbol2Index > 0 && smtSymbol2Index < BarsArray.Length)
+            {
+                if (CurrentBars[smtSymbol2Index] >= smtPivotLookback * 2 + 1)
+                {
+                    ProcessSMTComparisonSymbol(smtSymbol2Index, smtSymbol2SwingHighs, smtSymbol2SwingLows, "Symbol2");
+                }
+            }
+        }
+
+        private void ProcessSMTPrimaryChart()
+        {
+            // Detect swing high on primary chart
+            double? swingHigh = GetSMTSwingHigh(0);
+            if (swingHigh != null && !double.IsNaN(swingHigh.Value))
+            {
+                SMTSwingPoint newHigh = new SMTSwingPoint(swingHigh.Value, CurrentBars[0] - smtPivotLookback, Times[0][smtPivotLookback], true);
+
+                bool divergenceDetected = false;
+
+                // Check for divergence with Symbol 1
+                if (smtUseSymbol1 && smtSymbol1SwingHighs.Count > 0)
+                {
+                    if (CheckSMTHighDivergence(newHigh, smtSymbol1SwingHighs))
+                    {
+                        divergenceDetected = true;
+                        Print($"SMT: HIGH DIVERGENCE detected between Primary and Symbol1 at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
+                    }
+                }
+
+                // Check for divergence with Symbol 2
+                if (smtUseSymbol2 && smtSymbol2SwingHighs.Count > 0)
+                {
+                    if (CheckSMTHighDivergence(newHigh, smtSymbol2SwingHighs))
+                    {
+                        divergenceDetected = true;
+                        Print($"SMT: HIGH DIVERGENCE detected between Primary and Symbol2 at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
+                    }
+                }
+
+                smtPrimarySwingHighs.Add(newHigh);
+
+                if (divergenceDetected)
+                {
+                    smtLastHighDivergenceBar = CurrentBar;
+                    if (showSMTIndicator)
+                    {
+                        DrawSMTLine(newHigh, smtSwingHighColor, "H");
+                    }
+                }
+            }
+
+            // Detect swing low on primary chart
+            double? swingLow = GetSMTSwingLow(0);
+            if (swingLow != null && !double.IsNaN(swingLow.Value))
+            {
+                SMTSwingPoint newLow = new SMTSwingPoint(swingLow.Value, CurrentBars[0] - smtPivotLookback, Times[0][smtPivotLookback], false);
+
+                bool divergenceDetected = false;
+
+                // Check for divergence with Symbol 1
+                if (smtUseSymbol1 && smtSymbol1SwingLows.Count > 0)
+                {
+                    if (CheckSMTLowDivergence(newLow, smtSymbol1SwingLows))
+                    {
+                        divergenceDetected = true;
+                        Print($"SMT: LOW DIVERGENCE detected between Primary and Symbol1 at Bar {CurrentBar}, Price {swingLow.Value:F2}");
+                    }
+                }
+
+                // Check for divergence with Symbol 2
+                if (smtUseSymbol2 && smtSymbol2SwingLows.Count > 0)
+                {
+                    if (CheckSMTLowDivergence(newLow, smtSymbol2SwingLows))
+                    {
+                        divergenceDetected = true;
+                        Print($"SMT: LOW DIVERGENCE detected between Primary and Symbol2 at Bar {CurrentBar}, Price {swingLow.Value:F2}");
+                    }
+                }
+
+                smtPrimarySwingLows.Add(newLow);
+
+                if (divergenceDetected)
+                {
+                    smtLastLowDivergenceBar = CurrentBar;
+                    if (showSMTIndicator)
+                    {
+                        DrawSMTLine(newLow, smtSwingLowColor, "L");
+                    }
+                }
+            }
+        }
+
+        private void ProcessSMTComparisonSymbol(int seriesIndex, List<SMTSwingPoint> highs, List<SMTSwingPoint> lows, string symbolName)
+        {
+            double? swingHigh = GetSMTSwingHigh(seriesIndex);
+            if (swingHigh != null && !double.IsNaN(swingHigh.Value))
+            {
+                SMTSwingPoint newHigh = new SMTSwingPoint(swingHigh.Value, CurrentBars[seriesIndex] - smtPivotLookback, Times[seriesIndex][smtPivotLookback], true);
+                highs.Add(newHigh);
+                Print($"SMT {symbolName}: Pivot HIGH detected at Price:{swingHigh.Value:F2}, Bar:{CurrentBars[seriesIndex] - smtPivotLookback}");
+            }
+
+            double? swingLow = GetSMTSwingLow(seriesIndex);
+            if (swingLow != null && !double.IsNaN(swingLow.Value))
+            {
+                SMTSwingPoint newLow = new SMTSwingPoint(swingLow.Value, CurrentBars[seriesIndex] - smtPivotLookback, Times[seriesIndex][smtPivotLookback], false);
+                lows.Add(newLow);
+                Print($"SMT {symbolName}: Pivot LOW detected at Price:{swingLow.Value:F2}, Bar:{CurrentBars[seriesIndex] - smtPivotLookback}");
+            }
+        }
+
+        private double? GetSMTSwingHigh(int seriesIndex)
+        {
+            if (CurrentBars[seriesIndex] < smtPivotLookback * 2 + 1)
+                return null;
+
+            double testHigh = Highs[seriesIndex][smtPivotLookback];
+
+            // Check left side
+            for (int i = 1; i <= smtPivotLookback; i++)
+            {
+                if (Highs[seriesIndex][smtPivotLookback + i] >= testHigh)
+                    return null;
+            }
+
+            // Check right side
+            for (int i = 1; i <= smtPivotLookback; i++)
+            {
+                if (Highs[seriesIndex][smtPivotLookback - i] > testHigh)
+                    return null;
+            }
+
+            return testHigh;
+        }
+
+        private double? GetSMTSwingLow(int seriesIndex)
+        {
+            if (CurrentBars[seriesIndex] < smtPivotLookback * 2 + 1)
+                return null;
+
+            double testLow = Lows[seriesIndex][smtPivotLookback];
+
+            // Check left side
+            for (int i = 1; i <= smtPivotLookback; i++)
+            {
+                if (Lows[seriesIndex][smtPivotLookback + i] <= testLow)
+                    return null;
+            }
+
+            // Check right side
+            for (int i = 1; i <= smtPivotLookback; i++)
+            {
+                if (Lows[seriesIndex][smtPivotLookback - i] < testLow)
+                    return null;
+            }
+
+            return testLow;
+        }
+
+        private bool CheckSMTHighDivergence(SMTSwingPoint primaryHigh, List<SMTSwingPoint> comparisonHighs)
+        {
+            // Find the most recent comparison swing high before or around the same time as primary high
+            SMTSwingPoint comparisonHigh = comparisonHighs
+                .Where(sp => sp.BarIndex <= primaryHigh.BarIndex + 10 && sp.BarIndex >= primaryHigh.BarIndex - 10)
+                .OrderByDescending(sp => sp.BarIndex)
+                .FirstOrDefault();
+
+            if (comparisonHigh == null)
+                return false;
+
+            // SMT Divergence: Primary makes higher high, but comparison makes lower high (opposite direction)
+            if (smtPrimarySwingHighs.Count > 0)
+            {
+                SMTSwingPoint prevPrimaryHigh = smtPrimarySwingHighs.OrderByDescending(sp => sp.BarIndex).FirstOrDefault();
+                SMTSwingPoint prevComparisonHigh = comparisonHighs
+                    .Where(sp => sp.BarIndex < comparisonHigh.BarIndex)
+                    .OrderByDescending(sp => sp.BarIndex)
+                    .FirstOrDefault();
+
+                if (prevPrimaryHigh != null && prevComparisonHigh != null)
+                {
+                    bool primaryHigherHigh = primaryHigh.Price > prevPrimaryHigh.Price;
+                    bool comparisonLowerHigh = comparisonHigh.Price < prevComparisonHigh.Price;
+
+                    return primaryHigherHigh && comparisonLowerHigh; // Divergence!
+                }
+            }
+
+            return false;
+        }
+
+        private bool CheckSMTLowDivergence(SMTSwingPoint primaryLow, List<SMTSwingPoint> comparisonLows)
+        {
+            // Find the most recent comparison swing low before or around the same time as primary low
+            SMTSwingPoint comparisonLow = comparisonLows
+                .Where(sp => sp.BarIndex <= primaryLow.BarIndex + 10 && sp.BarIndex >= primaryLow.BarIndex - 10)
+                .OrderByDescending(sp => sp.BarIndex)
+                .FirstOrDefault();
+
+            if (comparisonLow == null)
+                return false;
+
+            // SMT Divergence: Primary makes lower low, but comparison makes higher low (opposite direction)
+            if (smtPrimarySwingLows.Count > 0)
+            {
+                SMTSwingPoint prevPrimaryLow = smtPrimarySwingLows.OrderByDescending(sp => sp.BarIndex).FirstOrDefault();
+                SMTSwingPoint prevComparisonLow = comparisonLows
+                    .Where(sp => sp.BarIndex < comparisonLow.BarIndex)
+                    .OrderByDescending(sp => sp.BarIndex)
+                    .FirstOrDefault();
+
+                if (prevPrimaryLow != null && prevComparisonLow != null)
+                {
+                    bool primaryLowerLow = primaryLow.Price < prevPrimaryLow.Price;
+                    bool comparisonHigherLow = comparisonLow.Price > prevComparisonLow.Price;
+
+                    return primaryLowerLow && comparisonHigherLow; // Divergence!
+                }
+            }
+
+            return false;
+        }
+
+        private void DrawSMTLine(SMTSwingPoint swingPoint, Brush color, string type)
+        {
+            string tag = $"SMTLine_{type}_{smtLineCounter++}";
+            int barsAgo = CurrentBar - swingPoint.BarIndex;
+
+            if (swingPoint.IsHigh)
+            {
+                Draw.Text(this, tag, false, $"SMT {type}", barsAgo, swingPoint.Price, 10,
+                         color, new SimpleFont("Arial", 10), TextAlignment.Center,
+                         Brushes.Transparent, Brushes.Transparent, 0);
+            }
+            else
+            {
+                Draw.Text(this, tag, false, $"SMT {type}", barsAgo, swingPoint.Price, -10,
+                         color, new SimpleFont("Arial", 10), TextAlignment.Center,
+                         Brushes.Transparent, Brushes.Transparent, 0);
+            }
+        }
+
         private bool CheckSMTDivergenceFilter(bool isLongTrade)
+        {
+            // Using embedded SMT logic - check if divergence was detected recently
+            // HIGH divergence (bearish) allows SHORT trades
+            // LOW divergence (bullish) allows LONG trades
+
+            if (isLongTrade)
+            {
+                // Check if low divergence was detected within signal duration
+                int barsSinceLowDivergence = CurrentBar - smtLastLowDivergenceBar;
+                bool hasLongSignal = (smtLastLowDivergenceBar >= 0 && barsSinceLowDivergence < smtLongSignalBars);
+
+                if (hasLongSignal)
+                {
+                    Print($"SMT-Divergence Filter PASSED: LOW divergence detected {barsSinceLowDivergence} bars ago - allowing LONG trade");
+                    return true;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: No recent LOW divergence (last was {barsSinceLowDivergence} bars ago, need within {smtLongSignalBars}) - blocking LONG trade");
+                    return false;
+                }
+            }
+            else
+            {
+                // Check if high divergence was detected within signal duration
+                int barsSinceHighDivergence = CurrentBar - smtLastHighDivergenceBar;
+                bool hasShortSignal = (smtLastHighDivergenceBar >= 0 && barsSinceHighDivergence < smtShortSignalBars);
+
+                if (hasShortSignal)
+                {
+                    Print($"SMT-Divergence Filter PASSED: HIGH divergence detected {barsSinceHighDivergence} bars ago - allowing SHORT trade");
+                    return true;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: No recent HIGH divergence (last was {barsSinceHighDivergence} bars ago, need within {smtShortSignalBars}) - blocking SHORT trade");
+                    return false;
+                }
+            }
+        }
+
+        // Old indicator-based method (removed, using embedded logic above)
+        private bool CheckSMTDivergenceFilter_OLD(bool isLongTrade)
         {
             // If no filter timeframes are selected, allow all trades
             if (!useChartTimeframe && !use1MinTimeframe && !use2MinTimeframe &&
@@ -2012,7 +2260,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             int filtersChecked = 0;
 
             // Check Chart Timeframe
-            if (useChartTimeframe && smtFilterChart != null)
+            if (useChartTimeframe) // Removed indicator check
             {
                 // LongSignal (Values[1]) = bullish divergence, allows LONG
                 // ShortSignal (Values[0]) = bearish divergence, allows SHORT
