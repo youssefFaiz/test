@@ -188,13 +188,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             public int BarIndex { get; set; }
             public DateTime Time { get; set; }
             public bool IsHigh { get; set; }
+            public bool IsBearishCandle { get; set; }
 
-            public SMTSwingPoint(double price, int barIndex, DateTime time, bool isHigh)
+            public SMTSwingPoint(double price, int barIndex, DateTime time, bool isHigh, bool isBearishCandle = false)
             {
                 Price = price;
                 BarIndex = barIndex;
                 Time = time;
                 IsHigh = isHigh;
+                IsBearishCandle = isBearishCandle;
             }
         }
 
@@ -1976,36 +1978,38 @@ namespace NinjaTrader.NinjaScript.Strategies
             double? swingHigh = GetSMTSwingHigh(0);
             if (swingHigh != null && !double.IsNaN(swingHigh.Value))
             {
-                SMTSwingPoint newHigh = new SMTSwingPoint(swingHigh.Value, CurrentBars[0] - smtPivotLookback, Times[0][smtPivotLookback], true);
+                bool isBearishCandle = IsSMTBearishCandle(0, smtPivotLookback);
+                SMTSwingPoint newHigh = new SMTSwingPoint(swingHigh.Value, CurrentBars[0] - smtPivotLookback, Times[0][smtPivotLookback], true, isBearishCandle);
 
                 bool divergenceDetected = false;
 
-                // Check for divergence with Symbol 1
+                // Check for divergence with Symbol 1 (BEFORE adding to list)
                 if (smtUseSymbol1 && smtSymbol1SwingHighs.Count > 0)
                 {
-                    if (CheckSMTHighDivergence(newHigh, smtSymbol1SwingHighs))
+                    if (CheckSMTDivergence(true, newHigh, smtPrimarySwingHighs, smtSymbol1SwingHighs, isBearishCandle))
                     {
                         divergenceDetected = true;
                         Print($"SMT: HIGH DIVERGENCE detected between Primary and Symbol1 at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
                     }
                 }
 
-                // Check for divergence with Symbol 2
+                // Check for divergence with Symbol 2 (BEFORE adding to list)
                 if (smtUseSymbol2 && smtSymbol2SwingHighs.Count > 0)
                 {
-                    if (CheckSMTHighDivergence(newHigh, smtSymbol2SwingHighs))
+                    if (CheckSMTDivergence(true, newHigh, smtPrimarySwingHighs, smtSymbol2SwingHighs, isBearishCandle))
                     {
                         divergenceDetected = true;
                         Print($"SMT: HIGH DIVERGENCE detected between Primary and Symbol2 at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
                     }
                 }
 
+                // NOW add to list (after checking divergence)
                 smtPrimarySwingHighs.Add(newHigh);
 
                 if (divergenceDetected)
                 {
                     smtLastHighDivergenceBar = CurrentBar;
-                    if (showSMTIndicator)
+                    if (showSMTIndicator && State != State.Historical)
                     {
                         DrawSMTLine(newHigh, smtSwingHighColor, "H");
                     }
@@ -2016,36 +2020,38 @@ namespace NinjaTrader.NinjaScript.Strategies
             double? swingLow = GetSMTSwingLow(0);
             if (swingLow != null && !double.IsNaN(swingLow.Value))
             {
-                SMTSwingPoint newLow = new SMTSwingPoint(swingLow.Value, CurrentBars[0] - smtPivotLookback, Times[0][smtPivotLookback], false);
+                bool isBearishCandle = IsSMTBearishCandle(0, smtPivotLookback);
+                SMTSwingPoint newLow = new SMTSwingPoint(swingLow.Value, CurrentBars[0] - smtPivotLookback, Times[0][smtPivotLookback], false, isBearishCandle);
 
                 bool divergenceDetected = false;
 
-                // Check for divergence with Symbol 1
+                // Check for divergence with Symbol 1 (BEFORE adding to list)
                 if (smtUseSymbol1 && smtSymbol1SwingLows.Count > 0)
                 {
-                    if (CheckSMTLowDivergence(newLow, smtSymbol1SwingLows))
+                    if (CheckSMTDivergence(false, newLow, smtPrimarySwingLows, smtSymbol1SwingLows, isBearishCandle))
                     {
                         divergenceDetected = true;
                         Print($"SMT: LOW DIVERGENCE detected between Primary and Symbol1 at Bar {CurrentBar}, Price {swingLow.Value:F2}");
                     }
                 }
 
-                // Check for divergence with Symbol 2
+                // Check for divergence with Symbol 2 (BEFORE adding to list)
                 if (smtUseSymbol2 && smtSymbol2SwingLows.Count > 0)
                 {
-                    if (CheckSMTLowDivergence(newLow, smtSymbol2SwingLows))
+                    if (CheckSMTDivergence(false, newLow, smtPrimarySwingLows, smtSymbol2SwingLows, isBearishCandle))
                     {
                         divergenceDetected = true;
                         Print($"SMT: LOW DIVERGENCE detected between Primary and Symbol2 at Bar {CurrentBar}, Price {swingLow.Value:F2}");
                     }
                 }
 
+                // NOW add to list (after checking divergence)
                 smtPrimarySwingLows.Add(newLow);
 
                 if (divergenceDetected)
                 {
                     smtLastLowDivergenceBar = CurrentBar;
-                    if (showSMTIndicator)
+                    if (showSMTIndicator && State != State.Historical)
                     {
                         DrawSMTLine(newLow, smtSwingLowColor, "L");
                     }
@@ -2058,7 +2064,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             double? swingHigh = GetSMTSwingHigh(seriesIndex);
             if (swingHigh != null && !double.IsNaN(swingHigh.Value))
             {
-                SMTSwingPoint newHigh = new SMTSwingPoint(swingHigh.Value, CurrentBars[seriesIndex] - smtPivotLookback, Times[seriesIndex][smtPivotLookback], true);
+                bool isBearishCandle = IsSMTBearishCandle(seriesIndex, smtPivotLookback);
+                SMTSwingPoint newHigh = new SMTSwingPoint(swingHigh.Value, CurrentBars[seriesIndex] - smtPivotLookback, Times[seriesIndex][smtPivotLookback], true, isBearishCandle);
                 highs.Add(newHigh);
                 Print($"SMT {symbolName}: Pivot HIGH detected at Price:{swingHigh.Value:F2}, Bar:{CurrentBars[seriesIndex] - smtPivotLookback}");
             }
@@ -2066,7 +2073,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             double? swingLow = GetSMTSwingLow(seriesIndex);
             if (swingLow != null && !double.IsNaN(swingLow.Value))
             {
-                SMTSwingPoint newLow = new SMTSwingPoint(swingLow.Value, CurrentBars[seriesIndex] - smtPivotLookback, Times[seriesIndex][smtPivotLookback], false);
+                bool isBearishCandle = IsSMTBearishCandle(seriesIndex, smtPivotLookback);
+                SMTSwingPoint newLow = new SMTSwingPoint(swingLow.Value, CurrentBars[seriesIndex] - smtPivotLookback, Times[seriesIndex][smtPivotLookback], false, isBearishCandle);
                 lows.Add(newLow);
                 Print($"SMT {symbolName}: Pivot LOW detected at Price:{swingLow.Value:F2}, Bar:{CurrentBars[seriesIndex] - smtPivotLookback}");
             }
@@ -2120,68 +2128,91 @@ namespace NinjaTrader.NinjaScript.Strategies
             return testLow;
         }
 
-        private bool CheckSMTHighDivergence(SMTSwingPoint primaryHigh, List<SMTSwingPoint> comparisonHighs)
+        // Exact copy of original indicator's divergence detection
+        private bool CheckSMTDivergence(bool isHigh, SMTSwingPoint currentSwing,
+            List<SMTSwingPoint> primarySwings, List<SMTSwingPoint> comparisonSwings, bool isBearishCandle)
         {
-            // Find the most recent comparison swing high before or around the same time as primary high
-            SMTSwingPoint comparisonHigh = comparisonHighs
-                .Where(sp => sp.BarIndex <= primaryHigh.BarIndex + 10 && sp.BarIndex >= primaryHigh.BarIndex - 10)
-                .OrderByDescending(sp => sp.BarIndex)
-                .FirstOrDefault();
+            if (comparisonSwings.Count < 2) return false;
+            if (primarySwings.Count < 1) return false; // Need at least 1 previous primary swing
 
-            if (comparisonHigh == null)
-                return false;
+            // Get the LAST primary swing (already in list, before current)
+            SMTSwingPoint lastPrimary = primarySwings[primarySwings.Count - 1];
 
-            // SMT Divergence: Primary makes higher high, but comparison makes lower high (opposite direction)
-            if (smtPrimarySwingHighs.Count > 0)
+            // Find the closest comparison swings by TIME
+            SMTSwingPoint lastComparison = FindClosestSMTSwing(lastPrimary.Time, comparisonSwings);
+            SMTSwingPoint currentComparison = FindClosestSMTSwing(currentSwing.Time, comparisonSwings);
+
+            if (lastComparison == null || currentComparison == null) return false;
+
+            // Calculate price changes
+            double primaryChange = currentSwing.Price - lastPrimary.Price;
+            double comparisonChange = currentComparison.Price - lastComparison.Price;
+
+            // Check for divergence (opposite direction movements)
+            bool isDivergence = (primaryChange * comparisonChange) < 0;
+
+            // Apply candle direction validation if enabled
+            if (isDivergence && smtCandleDirectionValidation)
             {
-                SMTSwingPoint prevPrimaryHigh = smtPrimarySwingHighs.OrderByDescending(sp => sp.BarIndex).FirstOrDefault();
-                SMTSwingPoint prevComparisonHigh = comparisonHighs
-                    .Where(sp => sp.BarIndex < comparisonHigh.BarIndex)
-                    .OrderByDescending(sp => sp.BarIndex)
+                SMTSwingPoint currentComparisonWithCandle = comparisonSwings
+                    .Where(sp => Math.Abs((sp.Time - currentSwing.Time).TotalSeconds) < 300) // within 5 min
+                    .OrderBy(sp => Math.Abs((sp.Time - currentSwing.Time).TotalSeconds))
                     .FirstOrDefault();
 
-                if (prevPrimaryHigh != null && prevComparisonHigh != null)
+                if (currentComparisonWithCandle != null)
                 {
-                    bool primaryHigherHigh = primaryHigh.Price > prevPrimaryHigh.Price;
-                    bool comparisonLowerHigh = comparisonHigh.Price < prevComparisonHigh.Price;
+                    bool comparisonIsBearish = IsSMTBearishCandleForSwing(currentComparisonWithCandle);
 
-                    return primaryHigherHigh && comparisonLowerHigh; // Divergence!
+                    if (isHigh)
+                    {
+                        // For high divergences, both should be bearish candles
+                        if (!isBearishCandle || !comparisonIsBearish)
+                        {
+                            isDivergence = false;
+                        }
+                    }
+                    else
+                    {
+                        // For low divergences, both should be bullish candles
+                        if (isBearishCandle || comparisonIsBearish)
+                        {
+                            isDivergence = false;
+                        }
+                    }
                 }
             }
 
-            return false;
+            return isDivergence;
         }
 
-        private bool CheckSMTLowDivergence(SMTSwingPoint primaryLow, List<SMTSwingPoint> comparisonLows)
+        private SMTSwingPoint FindClosestSMTSwing(DateTime targetTime, List<SMTSwingPoint> swings)
         {
-            // Find the most recent comparison swing low before or around the same time as primary low
-            SMTSwingPoint comparisonLow = comparisonLows
-                .Where(sp => sp.BarIndex <= primaryLow.BarIndex + 10 && sp.BarIndex >= primaryLow.BarIndex - 10)
-                .OrderByDescending(sp => sp.BarIndex)
-                .FirstOrDefault();
+            if (swings.Count == 0) return null;
 
-            if (comparisonLow == null)
-                return false;
+            SMTSwingPoint closest = swings[0];
+            double minDiff = Math.Abs((targetTime - closest.Time).TotalSeconds);
 
-            // SMT Divergence: Primary makes lower low, but comparison makes higher low (opposite direction)
-            if (smtPrimarySwingLows.Count > 0)
+            foreach (var swing in swings)
             {
-                SMTSwingPoint prevPrimaryLow = smtPrimarySwingLows.OrderByDescending(sp => sp.BarIndex).FirstOrDefault();
-                SMTSwingPoint prevComparisonLow = comparisonLows
-                    .Where(sp => sp.BarIndex < comparisonLow.BarIndex)
-                    .OrderByDescending(sp => sp.BarIndex)
-                    .FirstOrDefault();
-
-                if (prevPrimaryLow != null && prevComparisonLow != null)
+                double diff = Math.Abs((targetTime - swing.Time).TotalSeconds);
+                if (diff < minDiff)
                 {
-                    bool primaryLowerLow = primaryLow.Price < prevPrimaryLow.Price;
-                    bool comparisonHigherLow = comparisonLow.Price > prevComparisonLow.Price;
-
-                    return primaryLowerLow && comparisonHigherLow; // Divergence!
+                    minDiff = diff;
+                    closest = swing;
                 }
             }
 
-            return false;
+            return closest;
+        }
+
+        private bool IsSMTBearishCandle(int seriesIndex, int barsAgo)
+        {
+            return Closes[seriesIndex][barsAgo] < Opens[seriesIndex][barsAgo];
+        }
+
+        private bool IsSMTBearishCandleForSwing(SMTSwingPoint swing)
+        {
+            return swing.IsBearishCandle;
         }
 
         private void DrawSMTLine(SMTSwingPoint swingPoint, Brush color, string type)
