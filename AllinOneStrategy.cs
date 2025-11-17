@@ -259,6 +259,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int currentLTFTrend = 0;  // 0=none, 1=bullish, 2=bearish
         private int currentHTFTrend = 0;  // 0=none, 1=bullish, 2=bearish
 
+        // HeikenAshi Signal Tracking (prevent duplicate HTF signals)
+        private int lastHTFBullishSignalBar = -1;  // Last HTF bar index where bullish signal was generated
+        private int lastHTFBearishSignalBar = -1;  // Last HTF bar index where bearish signal was generated
+
         #endregion
 
         #region SignalInfo Class
@@ -2731,15 +2735,27 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool bullishChange = (previousSignal == 2 && currentSignal == 1);  // Red to Aqua = LONG
             bool bearishChange = (previousSignal == 1 && currentSignal == 2);  // Aqua to Red = SHORT
 
-            if (bullishChange)
+            // CRITICAL: Only generate signal if this is a NEW HTF bar (prevent duplicates)
+            // Compare current HTF bar index with last bar where we generated a signal
+            int currentHTFBar = CurrentBars[htfIndex];
+
+            if (bullishChange && currentHTFBar != lastHTFBullishSignalBar)
             {
-                Print($"*** HTF HeikenAshi BULLISH CHANGE detected at bar {CurrentBar}! Previous: {previousSignal}, Current: {currentSignal}");
+                Print($"*** HTF HeikenAshi BULLISH CHANGE detected at primary bar {CurrentBar}, HTF bar {currentHTFBar}! Previous: {previousSignal}, Current: {currentSignal}");
                 GenerateHeikenAshiEntry(true, true);  // isLong=true, isHTF=true
+                lastHTFBullishSignalBar = currentHTFBar;  // Mark this HTF bar as processed
             }
-            else if (bearishChange)
+            else if (bearishChange && currentHTFBar != lastHTFBearishSignalBar)
             {
-                Print($"*** HTF HeikenAshi BEARISH CHANGE detected at bar {CurrentBar}! Previous: {previousSignal}, Current: {currentSignal}");
+                Print($"*** HTF HeikenAshi BEARISH CHANGE detected at primary bar {CurrentBar}, HTF bar {currentHTFBar}! Previous: {previousSignal}, Current: {currentSignal}");
                 GenerateHeikenAshiEntry(false, true);  // isLong=false, isHTF=true
+                lastHTFBearishSignalBar = currentHTFBar;  // Mark this HTF bar as processed
+            }
+            else if (bullishChange || bearishChange)
+            {
+                // Debug: Signal was already generated for this HTF bar
+                if (CurrentBar % 10 == 0)
+                    Print($"HTF HeikenAshi change already processed for HTF bar {currentHTFBar} - skipping duplicate on primary bar {CurrentBar}");
             }
         }
 
