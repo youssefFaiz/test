@@ -121,7 +121,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int swingPointsLastCount = 8;        // Number of last swing points to check
         private int swingPointsSensitivity = 5;      // Sensitivity for swing detection
 
-        // Swing Points tracking for bias calculation
+        // Swing Points tracking for bias calculation (one list per timeframe)
         public enum SwingType { HH, HL, LL, LH }
         private class SwingPointData
         {
@@ -130,7 +130,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             public bool IsHigh { get; set; }         // true = swing high, false = swing low
             public SwingType? Type { get; set; }     // HH, HL, LL, or LH
         }
-        private List<SwingPointData> swingPointHistory = new List<SwingPointData>();
+
+        // Separate swing history for each timeframe
+        private List<SwingPointData> swingHistoryChart = new List<SwingPointData>();
+        private List<SwingPointData> swingHistory1Min = new List<SwingPointData>();
+        private List<SwingPointData> swingHistory2Min = new List<SwingPointData>();
+        private List<SwingPointData> swingHistory3Min = new List<SwingPointData>();
+        private List<SwingPointData> swingHistory5Min = new List<SwingPointData>();
+        private List<SwingPointData> swingHistory15Min = new List<SwingPointData>();
+        private List<SwingPointData> swingHistory30Min = new List<SwingPointData>();
+        private List<SwingPointData> swingHistoryCustom = new List<SwingPointData>();
 
         // ===== 021. R:R Risk Reward Settings =====
         private bool useBOSStopLossRR = true;
@@ -1399,69 +1408,55 @@ namespace NinjaTrader.NinjaScript.Strategies
         // ===== Swing Points Filter Methods =====
         private void UpdateSwingPointsForFilter()
         {
-            // Detect swing highs and lows using built-in Swing indicator
-            if (CurrentBar < swingPointsSensitivity * 2)
-                return;
-
+            // Update swing points for each selected timeframe from Section 013
             try
             {
-                // Check for new swing high
-                double? swingHigh = Swing(swingPointsSensitivity).SwingHigh[0];
-                if (swingHigh != null && swingHigh > 0)
+                // Chart Timeframe (BarsInProgress == 0)
+                if (useChartTimeframe && BarsInProgress == 0)
                 {
-                    // Check if this is a new swing point (not already recorded)
-                    bool isNew = !swingPointHistory.Any(sp => sp.IsHigh && sp.Price == swingHigh.Value && Math.Abs(CurrentBar - sp.BarIndex) < swingPointsSensitivity * 3);
-
-                    if (isNew)
-                    {
-                        SwingPointData newSwingHigh = new SwingPointData
-                        {
-                            Price = swingHigh.Value,
-                            BarIndex = CurrentBar,
-                            IsHigh = true,
-                            Type = null  // Will be classified below
-                        };
-
-                        // Classify the swing point
-                        ClassifySwingPoint(newSwingHigh);
-
-                        swingPointHistory.Add(newSwingHigh);
-                        Print($"Swing Filter: New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, Bar: {CurrentBar}");
-                    }
+                    UpdateSwingPointsForTimeframe(0, swingHistoryChart, "Chart TF");
                 }
 
-                // Check for new swing low
-                double? swingLow = Swing(swingPointsSensitivity).SwingLow[0];
-                if (swingLow != null && swingLow > 0)
+                // 1-Min Timeframe
+                if (use1MinTimeframe && filter1MinIndex > 0 && BarsInProgress == filter1MinIndex)
                 {
-                    // Check if this is a new swing point (not already recorded)
-                    bool isNew = !swingPointHistory.Any(sp => !sp.IsHigh && sp.Price == swingLow.Value && Math.Abs(CurrentBar - sp.BarIndex) < swingPointsSensitivity * 3);
-
-                    if (isNew)
-                    {
-                        SwingPointData newSwingLow = new SwingPointData
-                        {
-                            Price = swingLow.Value,
-                            BarIndex = CurrentBar,
-                            IsHigh = false,
-                            Type = null  // Will be classified below
-                        };
-
-                        // Classify the swing point
-                        ClassifySwingPoint(newSwingLow);
-
-                        swingPointHistory.Add(newSwingLow);
-                        Print($"Swing Filter: New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, Bar: {CurrentBar}");
-                    }
+                    UpdateSwingPointsForTimeframe(filter1MinIndex, swingHistory1Min, "1-Min");
                 }
 
-                // Keep only the last X swing points
-                if (swingPointHistory.Count > swingPointsLastCount * 2)
+                // 2-Min Timeframe
+                if (use2MinTimeframe && filter2MinIndex > 0 && BarsInProgress == filter2MinIndex)
                 {
-                    swingPointHistory = swingPointHistory
-                        .OrderByDescending(sp => sp.BarIndex)
-                        .Take(swingPointsLastCount * 2)
-                        .ToList();
+                    UpdateSwingPointsForTimeframe(filter2MinIndex, swingHistory2Min, "2-Min");
+                }
+
+                // 3-Min Timeframe
+                if (use3MinTimeframe && filter3MinIndex > 0 && BarsInProgress == filter3MinIndex)
+                {
+                    UpdateSwingPointsForTimeframe(filter3MinIndex, swingHistory3Min, "3-Min");
+                }
+
+                // 5-Min Timeframe
+                if (use5MinTimeframe && filter5MinIndex > 0 && BarsInProgress == filter5MinIndex)
+                {
+                    UpdateSwingPointsForTimeframe(filter5MinIndex, swingHistory5Min, "5-Min");
+                }
+
+                // 15-Min Timeframe
+                if (use15MinTimeframe && filter15MinIndex > 0 && BarsInProgress == filter15MinIndex)
+                {
+                    UpdateSwingPointsForTimeframe(filter15MinIndex, swingHistory15Min, "15-Min");
+                }
+
+                // 30-Min Timeframe
+                if (use30MinTimeframe && filter30MinIndex > 0 && BarsInProgress == filter30MinIndex)
+                {
+                    UpdateSwingPointsForTimeframe(filter30MinIndex, swingHistory30Min, "30-Min");
+                }
+
+                // Custom Timeframe
+                if (useCustomTimeframe && filterCustomIndex > 0 && BarsInProgress == filterCustomIndex)
+                {
+                    UpdateSwingPointsForTimeframe(filterCustomIndex, swingHistoryCustom, $"Custom {customTimeframeMinutes}-Min");
                 }
             }
             catch (Exception ex)
@@ -1470,9 +1465,79 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        private void ClassifySwingPoint(SwingPointData newPoint)
+        private void UpdateSwingPointsForTimeframe(int barsIndex, List<SwingPointData> swingHistory, string timeframeName)
         {
-            if (swingPointHistory.Count == 0)
+            // Detect swing highs and lows using built-in Swing indicator for specific timeframe
+            if (CurrentBars[barsIndex] < swingPointsSensitivity * 2)
+                return;
+
+            try
+            {
+                // Check for new swing high on this timeframe
+                double? swingHigh = Swing(BarsArray[barsIndex], swingPointsSensitivity).SwingHigh[0];
+                if (swingHigh != null && swingHigh > 0)
+                {
+                    // Check if this is a new swing point (not already recorded)
+                    bool isNew = !swingHistory.Any(sp => sp.IsHigh && sp.Price == swingHigh.Value && Math.Abs(CurrentBars[barsIndex] - sp.BarIndex) < swingPointsSensitivity * 3);
+
+                    if (isNew)
+                    {
+                        SwingPointData newSwingHigh = new SwingPointData
+                        {
+                            Price = swingHigh.Value,
+                            BarIndex = CurrentBars[barsIndex],
+                            IsHigh = true,
+                            Type = null  // Will be classified below
+                        };
+
+                        // Classify the swing point
+                        ClassifySwingPoint(newSwingHigh, swingHistory);
+
+                        swingHistory.Add(newSwingHigh);
+                        Print($"Swing Filter ({timeframeName}): New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, Bar: {CurrentBars[barsIndex]}");
+                    }
+                }
+
+                // Check for new swing low on this timeframe
+                double? swingLow = Swing(BarsArray[barsIndex], swingPointsSensitivity).SwingLow[0];
+                if (swingLow != null && swingLow > 0)
+                {
+                    // Check if this is a new swing point (not already recorded)
+                    bool isNew = !swingHistory.Any(sp => !sp.IsHigh && sp.Price == swingLow.Value && Math.Abs(CurrentBars[barsIndex] - sp.BarIndex) < swingPointsSensitivity * 3);
+
+                    if (isNew)
+                    {
+                        SwingPointData newSwingLow = new SwingPointData
+                        {
+                            Price = swingLow.Value,
+                            BarIndex = CurrentBars[barsIndex],
+                            IsHigh = false,
+                            Type = null  // Will be classified below
+                        };
+
+                        // Classify the swing point
+                        ClassifySwingPoint(newSwingLow, swingHistory);
+
+                        swingHistory.Add(newSwingLow);
+                        Print($"Swing Filter ({timeframeName}): New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, Bar: {CurrentBars[barsIndex]}");
+                    }
+                }
+
+                // Keep only the last X swing points
+                if (swingHistory.Count > swingPointsLastCount * 2)
+                {
+                    swingHistory.RemoveRange(0, swingHistory.Count - (swingPointsLastCount * 2));
+                }
+            }
+            catch (Exception ex)
+            {
+                Print($"Error updating swings for {timeframeName}: {ex.Message}");
+            }
+        }
+
+        private void ClassifySwingPoint(SwingPointData newPoint, List<SwingPointData> swingHistory)
+        {
+            if (swingHistory.Count == 0)
             {
                 newPoint.Type = null;  // First point, no classification possible
                 return;
@@ -1481,7 +1546,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (newPoint.IsHigh)
             {
                 // Find the previous swing high
-                var previousHigh = swingPointHistory
+                var previousHigh = swingHistory
                     .Where(sp => sp.IsHigh && sp.BarIndex < newPoint.BarIndex)
                     .OrderByDescending(sp => sp.BarIndex)
                     .FirstOrDefault();
@@ -1500,7 +1565,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             else
             {
                 // Find the previous swing low
-                var previousLow = swingPointHistory
+                var previousLow = swingHistory
                     .Where(sp => !sp.IsHigh && sp.BarIndex < newPoint.BarIndex)
                     .OrderByDescending(sp => sp.BarIndex)
                     .FirstOrDefault();
@@ -1520,15 +1585,116 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private bool CheckSwingPointsFilter(bool isLongTrade)
         {
-            // If not enough swing points, allow all trades
-            if (swingPointHistory.Count < 2)
+            // Check ALL selected timeframes from Section 013 - all must agree on bias
+            if (!useChartTimeframe && !use1MinTimeframe && !use2MinTimeframe &&
+                !use3MinTimeframe && !use5MinTimeframe && !use15MinTimeframe && !use30MinTimeframe && !useCustomTimeframe)
             {
-                Print($"Swing Points Filter: Not enough data (only {swingPointHistory.Count} points) - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
+                Print($"Swing Points Filter: No timeframes selected - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
                 return true;
             }
 
+            bool allFiltersAgree = true;
+            int filtersChecked = 0;
+
+            // Check Chart Timeframe
+            if (useChartTimeframe)
+            {
+                if (!CheckTimeframeBias(swingHistoryChart, "Chart TF", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            // Check 1-Min Timeframe
+            if (use1MinTimeframe && filter1MinIndex > 0)
+            {
+                if (!CheckTimeframeBias(swingHistory1Min, "1-Min", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            // Check 2-Min Timeframe
+            if (use2MinTimeframe && filter2MinIndex > 0)
+            {
+                if (!CheckTimeframeBias(swingHistory2Min, "2-Min", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            // Check 3-Min Timeframe
+            if (use3MinTimeframe && filter3MinIndex > 0)
+            {
+                if (!CheckTimeframeBias(swingHistory3Min, "3-Min", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            // Check 5-Min Timeframe
+            if (use5MinTimeframe && filter5MinIndex > 0)
+            {
+                if (!CheckTimeframeBias(swingHistory5Min, "5-Min", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            // Check 15-Min Timeframe
+            if (use15MinTimeframe && filter15MinIndex > 0)
+            {
+                if (!CheckTimeframeBias(swingHistory15Min, "15-Min", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            // Check 30-Min Timeframe
+            if (use30MinTimeframe && filter30MinIndex > 0)
+            {
+                if (!CheckTimeframeBias(swingHistory30Min, "30-Min", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            // Check Custom Timeframe
+            if (useCustomTimeframe && filterCustomIndex > 0)
+            {
+                if (!CheckTimeframeBias(swingHistoryCustom, $"Custom {customTimeframeMinutes}-Min", isLongTrade))
+                {
+                    allFiltersAgree = false;
+                }
+                filtersChecked++;
+            }
+
+            if (allFiltersAgree)
+            {
+                Print($"Swing Points Filter PASSED: All {filtersChecked} timeframe(s) agree - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
+            }
+
+            return allFiltersAgree;
+        }
+
+        private bool CheckTimeframeBias(List<SwingPointData> swingHistory, string timeframeName, bool isLongTrade)
+        {
+            // If not enough swing points, allow (neutral bias)
+            if (swingHistory.Count < 2)
+            {
+                Print($"Swing Points Filter ({timeframeName}): Not enough data (only {swingHistory.Count} points) - neutral");
+                return true;  // Neutral = allow both
+            }
+
             // Get the last X swing points
-            var lastSwingPoints = swingPointHistory
+            var lastSwingPoints = swingHistory
                 .OrderByDescending(sp => sp.BarIndex)
                 .Take(swingPointsLastCount)
                 .Where(sp => sp.Type != null)  // Only classified points
@@ -1536,15 +1702,15 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             if (lastSwingPoints.Count < 2)
             {
-                Print($"Swing Points Filter: Not enough classified points (only {lastSwingPoints.Count}) - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
-                return true;
+                Print($"Swing Points Filter ({timeframeName}): Not enough classified points (only {lastSwingPoints.Count}) - neutral");
+                return true;  // Neutral = allow both
             }
 
             // Count bullish signs (HH, HL) vs bearish signs (LL, LH)
             int bullishCount = lastSwingPoints.Count(sp => sp.Type == SwingType.HH || sp.Type == SwingType.HL);
             int bearishCount = lastSwingPoints.Count(sp => sp.Type == SwingType.LL || sp.Type == SwingType.LH);
 
-            Print($"Swing Points Filter: Last {lastSwingPoints.Count} points - Bullish: {bullishCount} (HH/HL), Bearish: {bearishCount} (LL/LH)");
+            Print($"Swing Points Filter ({timeframeName}): Last {lastSwingPoints.Count} points - Bullish: {bullishCount} (HH/HL), Bearish: {bearishCount} (LL/LH)");
 
             // Determine bias
             if (bullishCount > bearishCount)
@@ -1552,12 +1718,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Bullish bias - allow LONG only
                 if (isLongTrade)
                 {
-                    Print($"Swing Points Filter PASSED: Bullish bias ({bullishCount} > {bearishCount}) - allowing LONG trade");
+                    Print($"Swing Points Filter ({timeframeName}) PASSED: Bullish bias ({bullishCount} > {bearishCount}) - allowing LONG");
                     return true;
                 }
                 else
                 {
-                    Print($"Swing Points Filter BLOCKED: Bullish bias ({bullishCount} > {bearishCount}) - blocking SHORT trade");
+                    Print($"Swing Points Filter ({timeframeName}) BLOCKED: Bullish bias ({bullishCount} > {bearishCount}) - blocking SHORT");
                     return false;
                 }
             }
@@ -1566,19 +1732,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Bearish bias - allow SHORT only
                 if (!isLongTrade)
                 {
-                    Print($"Swing Points Filter PASSED: Bearish bias ({bearishCount} > {bullishCount}) - allowing SHORT trade");
+                    Print($"Swing Points Filter ({timeframeName}) PASSED: Bearish bias ({bearishCount} > {bullishCount}) - allowing SHORT");
                     return true;
                 }
                 else
                 {
-                    Print($"Swing Points Filter BLOCKED: Bearish bias ({bearishCount} > {bullishCount}) - blocking LONG trade");
+                    Print($"Swing Points Filter ({timeframeName}) BLOCKED: Bearish bias ({bearishCount} > {bullishCount}) - blocking LONG");
                     return false;
                 }
             }
             else
             {
-                // Equal - allow both directions
-                Print($"Swing Points Filter PASSED: Neutral bias ({bullishCount} = {bearishCount}) - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
+                // Equal - allow both directions (neutral)
+                Print($"Swing Points Filter ({timeframeName}) PASSED: Neutral bias ({bullishCount} = {bearishCount}) - allowing {(isLongTrade ? "LONG" : "SHORT")}");
                 return true;
             }
         }
