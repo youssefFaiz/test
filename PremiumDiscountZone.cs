@@ -184,11 +184,11 @@ namespace NinjaTrader.NinjaScript.Indicators
                 endTime, premiumTop,
                 PremiumColor, DashStyleHelper.Solid, 2);
 
-            // Premium filled box (from top to equilibrium)
+            // Premium filled box (from top to equilibrium) - transparent border
             Draw.Rectangle(this, "PremiumBox", false,
                 startTime, premiumTop,
                 endTime, equilibrium,
-                PremiumColor, PremiumColor, 20);
+                Brushes.Transparent, PremiumColor, 90);
 
             // Draw Equilibrium line
             Draw.Line(this, "EquilibriumLine", false,
@@ -203,27 +203,21 @@ namespace NinjaTrader.NinjaScript.Indicators
                 endTime, discountBottom,
                 DiscountColor, DashStyleHelper.Solid, 2);
 
-            // Discount filled box (from equilibrium to bottom)
+            // Discount filled box (from equilibrium to bottom) - transparent border
             Draw.Rectangle(this, "DiscountBox", false,
                 startTime, equilibrium,
                 endTime, discountBottom,
-                DiscountColor, DiscountColor, 20);
+                Brushes.Transparent, DiscountColor, 90);
 
             // Draw labels at the right side
             Draw.Text(this, "PremiumLabel", "Premium",
-                0, premiumTop, 20, PremiumColor,
-                new SimpleFont("Arial", 10), TextAlignment.Right,
-                Brushes.Transparent, Brushes.Transparent, 0);
+                0, premiumTop, 20, PremiumColor);
 
             Draw.Text(this, "EquilibriumLabel", "Equilibrium",
-                0, equilibrium, 20, Brushes.Silver,
-                new SimpleFont("Arial", 10), TextAlignment.Right,
-                Brushes.Transparent, Brushes.Transparent, 0);
+                0, equilibrium, 20, Brushes.Silver);
 
             Draw.Text(this, "DiscountLabel", "Discount",
-                0, discountBottom, 20, DiscountColor,
-                new SimpleFont("Arial", 10), TextAlignment.Right,
-                Brushes.Transparent, Brushes.Transparent, 0);
+                0, discountBottom, 20, DiscountColor);
         }
 
         #region Properties
