@@ -756,15 +756,11 @@ namespace NinjaTrader.NinjaScript.Indicators
         }
 
         // NEW: Methods to configure symbol indices when called from strategy
-        [Browsable(false)]
-        [XmlIgnore]
         public void SetSymbol1Index(int index)
         {
             symbol1Index = index;
         }
 
-        [Browsable(false)]
-        [XmlIgnore]
         public void SetSymbol2Index(int index)
         {
             symbol2Index = index;
