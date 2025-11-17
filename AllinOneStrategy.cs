@@ -218,6 +218,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int smtLineCounter = 0;
         private int smtLabelCounter = 0;
 
+        // SMT divergence counters (like original indicator's phSmt1, phSmt2, plSmt1, plSmt2)
+        private int smtSymbol1HighCounter = 0;
+        private int smtSymbol1LowCounter = 0;
+        private int smtSymbol2HighCounter = 0;
+        private int smtSymbol2LowCounter = 0;
+
+        // Last divergence counters for label drawing
+        private int smtLastSymbol1HighCounter = 0;
+        private int smtLastSymbol1LowCounter = 0;
+        private int smtLastSymbol2HighCounter = 0;
+        private int smtLastSymbol2LowCounter = 0;
+
         // ===== 021. R:R Risk Reward Settings =====
         private bool useBOSStopLossRR = true;
         private int bosStopLossPlusTicks = 2;
@@ -736,66 +748,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Debug output every 100 bars
                 if (CurrentBar % 100 == 0)
-                    Print($"Strategy Running - Bar: {CurrentBar}, BOS Entry:{useBOSEntry}, Display:{useBOSDisplayOnly}, Combined:{useBOSCombinedEntry}");
+                    Print($"Strategy Running - Bar: {CurrentBar}, BarsInProgress:{BarsInProgress}, BOS Entry:{useBOSEntry}, Display:{useBOSDisplayOnly}, Combined:{useBOSCombinedEntry}");
 
-                // Clean up expired signals
-                RemoveExpiredSignals();
-
-                // Update Swing Points for Filter (if enabled)
-                if (useSwingPointsFilter)
-                {
-                    UpdateSwingPointsForFilter();
-                }
-
-                // Update SMT Divergence Detection (if enabled)
+                // Update SMT Divergence Detection (if enabled) - handles all BarsInProgress internally
                 if (useSMTDivergenceFilter)
                 {
                     ProcessSMTDivergence();
-                }
-
-                // Check for BOS signals
-                if (useBOSEntry || useBOSCombinedEntry || useBOSDisplayOnly)
-                {
-                    CheckForBOSSignal();
-                }
-                else
-                {
-                    if (CurrentBar % 100 == 0)
-                        Print("BOS Detection SKIPPED - all BOS settings are OFF!");
-                }
-
-                // Check for CISD signals
-                if (useCISDEntry || useCISDCombinedEntry || useCISDDisplayOnly)
-                {
-                    CheckForCISDSignal();
-                    CheckCISDLevelCrosses();  // Check if price crossed any pending CISD levels
-                }
-
-                // Check for FVG signals
-                if (useFVGEntry || useFVGCombinedEntry || useFVGDisplayOnly)
-                {
-                    CheckForFVGSignal();      // Detect new FVGs
-                    CheckFVGRetests();        // Check for retests
-                    CheckFVGEntrySignals();   // Check for entry signals after retest
-                }
-
-                // Check for IFVG signals
-                if (useIFVGEntry || useIFVGCombinedEntry || useIFVGDisplayOnly)
-                {
-                    DetectIFVG();             // Detect potential IFVGs (FVG patterns)
-                    CheckIFVGMitigation();    // Check for mitigation and generate entries
-                }
-
-                // Check for LTF HeikenAshi signals (chart timeframe)
-                if (useLTFHeikenAshiEntry || useLTFHeikenAshiCombinedEntry || useLTFHeikenAshiDisplayOnly)
-                {
-                    CheckForLTFHeikenAshiSignal();  // Detect LTF HeikenAshi color changes
-                }
-
-                // Check for HTF HeikenAshi signals and color candles
-                if (useHTFHeikenAshiEntry || useHTFHeikenAshiCombinedEntry || useHTFHeikenAshiDisplayOnly)
-                {
-                    CheckForHTFHeikenAshiSignal();  // Detect HTF color changes and color candles
                 }
 
                 // Process HTF data updates (15min timeframe) - detect new pivots only
@@ -804,9 +762,65 @@ namespace NinjaTrader.NinjaScript.Strategies
                     UpdateHTFPivots();  // Only update HTF pivot list
                 }
 
-                // Process primary bars (chart timeframe)
+                // ===== PROCESS PRIMARY CHART ONLY (BarsInProgress == 0) =====
+                // All signal detection uses implicit indexers (Close[0], Low[0], etc.) which reference the current BarsInProgress
+                // Must ONLY run when processing primary chart to avoid mixing prices from different symbols
                 if (BarsInProgress == 0)
                 {
+                    // Clean up expired signals
+                    RemoveExpiredSignals();
+
+                    // Update Swing Points for Filter (if enabled)
+                    if (useSwingPointsFilter)
+                    {
+                        UpdateSwingPointsForFilter();
+                    }
+
+                    // Check for BOS signals
+                    if (useBOSEntry || useBOSCombinedEntry || useBOSDisplayOnly)
+                    {
+                        CheckForBOSSignal();
+                    }
+                    else
+                    {
+                        if (CurrentBar % 100 == 0)
+                            Print("BOS Detection SKIPPED - all BOS settings are OFF!");
+                    }
+
+                    // Check for CISD signals
+                    if (useCISDEntry || useCISDCombinedEntry || useCISDDisplayOnly)
+                    {
+                        CheckForCISDSignal();
+                        CheckCISDLevelCrosses();  // Check if price crossed any pending CISD levels
+                    }
+
+                    // Check for FVG signals
+                    if (useFVGEntry || useFVGCombinedEntry || useFVGDisplayOnly)
+                    {
+                        CheckForFVGSignal();      // Detect new FVGs
+                        CheckFVGRetests();        // Check for retests
+                        CheckFVGEntrySignals();   // Check for entry signals after retest
+                    }
+
+                    // Check for IFVG signals
+                    if (useIFVGEntry || useIFVGCombinedEntry || useIFVGDisplayOnly)
+                    {
+                        DetectIFVG();             // Detect potential IFVGs (FVG patterns)
+                        CheckIFVGMitigation();    // Check for mitigation and generate entries
+                    }
+
+                    // Check for LTF HeikenAshi signals (chart timeframe)
+                    if (useLTFHeikenAshiEntry || useLTFHeikenAshiCombinedEntry || useLTFHeikenAshiDisplayOnly)
+                    {
+                        CheckForLTFHeikenAshiSignal();  // Detect LTF HeikenAshi color changes
+                    }
+
+                    // Check for HTF HeikenAshi signals and color candles
+                    if (useHTFHeikenAshiEntry || useHTFHeikenAshiCombinedEntry || useHTFHeikenAshiDisplayOnly)
+                    {
+                        CheckForHTFHeikenAshiSignal();  // Detect HTF color changes and color candles
+                    }
+
                     // Check for LTF Sweep signals (chart timeframe)
                     if (useLTFSweepEntry || useLTFSweepCombinedEntry || useSweepDisplayOnly)
                     {
@@ -1974,7 +1988,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void ProcessSMTPrimaryChart()
         {
-            // Detect swing high on primary chart
+            // Detect swing high on primary chart (matches original indicator lines 267-302)
             double? swingHigh = GetSMTSwingHigh(0);
             if (swingHigh != null && !double.IsNaN(swingHigh.Value))
             {
@@ -1984,39 +1998,44 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool divergenceDetected = false;
 
                 // Check for divergence with Symbol 1 (BEFORE adding to list)
+                // Passes counter by ref - CheckDivergence will increment it AND draw the line
                 if (smtUseSymbol1 && smtSymbol1SwingHighs.Count > 0)
                 {
-                    if (CheckSMTDivergence(true, newHigh, smtPrimarySwingHighs, smtSymbol1SwingHighs, isBearishCandle))
+                    if (CheckSMTDivergence(true, newHigh, smtPrimarySwingHighs, smtSymbol1SwingHighs,
+                        isBearishCandle, ref smtSymbol1HighCounter))
                     {
                         divergenceDetected = true;
-                        Print($"SMT: HIGH DIVERGENCE detected between Primary and Symbol1 at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
                     }
                 }
 
                 // Check for divergence with Symbol 2 (BEFORE adding to list)
                 if (smtUseSymbol2 && smtSymbol2SwingHighs.Count > 0)
                 {
-                    if (CheckSMTDivergence(true, newHigh, smtPrimarySwingHighs, smtSymbol2SwingHighs, isBearishCandle))
+                    if (CheckSMTDivergence(true, newHigh, smtPrimarySwingHighs, smtSymbol2SwingHighs,
+                        isBearishCandle, ref smtSymbol2HighCounter))
                     {
                         divergenceDetected = true;
-                        Print($"SMT: HIGH DIVERGENCE detected between Primary and Symbol2 at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
                     }
                 }
 
-                // NOW add to list (after checking divergence)
+                // NOW add to list (after checking divergences)
                 smtPrimarySwingHighs.Add(newHigh);
 
+                // Track divergence for signal generation
                 if (divergenceDetected)
                 {
                     smtLastHighDivergenceBar = CurrentBar;
-                    if (showSMTIndicator && State != State.Historical)
-                    {
-                        DrawSMTLine(newHigh, smtSwingHighColor, "H");
-                    }
+                    Print($"SMT: HIGH DIVERGENCE DETECTED at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
+                }
+
+                // Draw label (checks if counters increased to show symbol name)
+                if (showSMTIndicator && State != State.Historical)
+                {
+                    DrawSMTDivergenceLabel(true, newHigh);
                 }
             }
 
-            // Detect swing low on primary chart
+            // Detect swing low on primary chart (matches original indicator lines 304-338)
             double? swingLow = GetSMTSwingLow(0);
             if (swingLow != null && !double.IsNaN(swingLow.Value))
             {
@@ -2028,33 +2047,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Check for divergence with Symbol 1 (BEFORE adding to list)
                 if (smtUseSymbol1 && smtSymbol1SwingLows.Count > 0)
                 {
-                    if (CheckSMTDivergence(false, newLow, smtPrimarySwingLows, smtSymbol1SwingLows, isBearishCandle))
+                    if (CheckSMTDivergence(false, newLow, smtPrimarySwingLows, smtSymbol1SwingLows,
+                        isBearishCandle, ref smtSymbol1LowCounter))
                     {
                         divergenceDetected = true;
-                        Print($"SMT: LOW DIVERGENCE detected between Primary and Symbol1 at Bar {CurrentBar}, Price {swingLow.Value:F2}");
                     }
                 }
 
                 // Check for divergence with Symbol 2 (BEFORE adding to list)
                 if (smtUseSymbol2 && smtSymbol2SwingLows.Count > 0)
                 {
-                    if (CheckSMTDivergence(false, newLow, smtPrimarySwingLows, smtSymbol2SwingLows, isBearishCandle))
+                    if (CheckSMTDivergence(false, newLow, smtPrimarySwingLows, smtSymbol2SwingLows,
+                        isBearishCandle, ref smtSymbol2LowCounter))
                     {
                         divergenceDetected = true;
-                        Print($"SMT: LOW DIVERGENCE detected between Primary and Symbol2 at Bar {CurrentBar}, Price {swingLow.Value:F2}");
                     }
                 }
 
-                // NOW add to list (after checking divergence)
+                // NOW add to list (after checking divergences)
                 smtPrimarySwingLows.Add(newLow);
 
+                // Track divergence for signal generation
                 if (divergenceDetected)
                 {
                     smtLastLowDivergenceBar = CurrentBar;
-                    if (showSMTIndicator && State != State.Historical)
-                    {
-                        DrawSMTLine(newLow, smtSwingLowColor, "L");
-                    }
+                    Print($"SMT: LOW DIVERGENCE DETECTED at Bar {CurrentBar}, Price {swingLow.Value:F2}");
+                }
+
+                // Draw label (checks if counters increased to show symbol name)
+                if (showSMTIndicator && State != State.Historical)
+                {
+                    DrawSMTDivergenceLabel(false, newLow);
                 }
             }
         }
@@ -2128,12 +2151,24 @@ namespace NinjaTrader.NinjaScript.Strategies
             return testLow;
         }
 
-        // Exact copy of original indicator's divergence detection
+        // Exact copy of original indicator's divergence detection (matches lines 453-507)
         private bool CheckSMTDivergence(bool isHigh, SMTSwingPoint currentSwing,
-            List<SMTSwingPoint> primarySwings, List<SMTSwingPoint> comparisonSwings, bool isBearishCandle)
+            List<SMTSwingPoint> primarySwings, List<SMTSwingPoint> comparisonSwings,
+            bool isBearishCandle, ref int smtCounter)
         {
-            if (comparisonSwings.Count < 2) return false;
-            if (primarySwings.Count < 1) return false; // Need at least 1 previous primary swing
+            string swingType = isHigh ? "HIGH" : "LOW";
+
+            if (comparisonSwings.Count < 2)
+            {
+                Print($"SMT {swingType}: Not enough comparison swings ({comparisonSwings.Count} < 2)");
+                return false;
+            }
+
+            if (primarySwings.Count < 1)
+            {
+                Print($"SMT {swingType}: Not enough primary swings ({primarySwings.Count} < 1)");
+                return false;
+            }
 
             // Get the LAST primary swing (already in list, before current)
             SMTSwingPoint lastPrimary = primarySwings[primarySwings.Count - 1];
@@ -2142,18 +2177,33 @@ namespace NinjaTrader.NinjaScript.Strategies
             SMTSwingPoint lastComparison = FindClosestSMTSwing(lastPrimary.Time, comparisonSwings);
             SMTSwingPoint currentComparison = FindClosestSMTSwing(currentSwing.Time, comparisonSwings);
 
-            if (lastComparison == null || currentComparison == null) return false;
+            if (lastComparison == null || currentComparison == null)
+            {
+                Print($"SMT {swingType}: Could not find matching comparison swings");
+                return false;
+            }
 
             // Calculate price changes
             double primaryChange = currentSwing.Price - lastPrimary.Price;
             double comparisonChange = currentComparison.Price - lastComparison.Price;
 
+            Print($"SMT {swingType} Check:");
+            Print($"  Primary: {lastPrimary.Price:F2} -> {currentSwing.Price:F2} (change: {primaryChange:F2})");
+            Print($"  Comparison: {lastComparison.Price:F2} -> {currentComparison.Price:F2} (change: {comparisonChange:F2})");
+            Print($"  Product: {primaryChange * comparisonChange:F2} (< 0 = divergence)");
+
             // Check for divergence (opposite direction movements)
             bool isDivergence = (primaryChange * comparisonChange) < 0;
+
+            if (isDivergence)
+            {
+                Print($"  DIVERGENCE DETECTED!");
+            }
 
             // Apply candle direction validation if enabled
             if (isDivergence && smtCandleDirectionValidation)
             {
+                Print($"  Checking candle direction validation...");
                 SMTSwingPoint currentComparisonWithCandle = comparisonSwings
                     .Where(sp => Math.Abs((sp.Time - currentSwing.Time).TotalSeconds) < 300) // within 5 min
                     .OrderBy(sp => Math.Abs((sp.Time - currentSwing.Time).TotalSeconds))
@@ -2168,6 +2218,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // For high divergences, both should be bearish candles
                         if (!isBearishCandle || !comparisonIsBearish)
                         {
+                            Print($"  Candle validation FAILED for HIGH (primary bearish:{isBearishCandle}, comparison bearish:{comparisonIsBearish})");
                             isDivergence = false;
                         }
                     }
@@ -2176,13 +2227,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // For low divergences, both should be bullish candles
                         if (isBearishCandle || comparisonIsBearish)
                         {
+                            Print($"  Candle validation FAILED for LOW (primary bearish:{isBearishCandle}, comparison bearish:{comparisonIsBearish})");
                             isDivergence = false;
                         }
                     }
                 }
             }
 
-            return isDivergence;
+            // If divergence found, increment counter and draw the line (like original line 498-501)
+            if (isDivergence)
+            {
+                smtCounter++;
+                DrawSMTDivergenceLine(lastPrimary, currentSwing, isHigh);
+                return true;
+            }
+
+            return false;
         }
 
         private SMTSwingPoint FindClosestSMTSwing(DateTime targetTime, List<SMTSwingPoint> swings)
@@ -2215,23 +2275,105 @@ namespace NinjaTrader.NinjaScript.Strategies
             return swing.IsBearishCandle;
         }
 
-        private void DrawSMTLine(SMTSwingPoint swingPoint, Brush color, string type)
+        // Exact copy of original indicator's DrawDivergenceLine (lines 576-601)
+        private void DrawSMTDivergenceLine(SMTSwingPoint point1, SMTSwingPoint point2, bool isHigh)
         {
-            string tag = $"SMTLine_{type}_{smtLineCounter++}";
-            int barsAgo = CurrentBar - swingPoint.BarIndex;
+            try
+            {
+                Brush lineColor = isHigh ? smtSwingHighColor : smtSwingLowColor;
+                string tag = $"SMT_Line_{smtLineCounter++}";
 
-            if (swingPoint.IsHigh)
-            {
-                Draw.Text(this, tag, false, $"SMT {type}", barsAgo, swingPoint.Price, 10,
-                         color, new SimpleFont("Arial", 10), TextAlignment.Center,
-                         Brushes.Transparent, Brushes.Transparent, 0);
+                // Draw line between the two swing points
+                Draw.Line(this, tag, false,
+                    point1.Time, point1.Price,
+                    point2.Time, point2.Price,
+                    lineColor, DashStyleHelper.Solid, smtLineWidth);
+
+                Print($"Drew SMT divergence line: {tag} from {point1.Price:F2} to {point2.Price:F2}");
             }
-            else
+            catch (Exception ex)
             {
-                Draw.Text(this, tag, false, $"SMT {type}", barsAgo, swingPoint.Price, -10,
-                         color, new SimpleFont("Arial", 10), TextAlignment.Center,
-                         Brushes.Transparent, Brushes.Transparent, 0);
+                Print($"Error drawing SMT divergence line: {ex.Message}");
             }
+        }
+
+        // Exact copy of original indicator's DrawDivergenceLabel (lines 603-675)
+        private void DrawSMTDivergenceLabel(bool isHigh, SMTSwingPoint swing)
+        {
+            try
+            {
+                string labelText = "";
+                bool hasDivergence = false;
+
+                if (isHigh)
+                {
+                    // Check if Symbol1 has new high divergence
+                    if (smtUseSymbol1 && smtSymbol1HighCounter > smtLastSymbol1HighCounter)
+                    {
+                        labelText = GetSMTSymbolTicker(smtSymbol1Name);
+                        hasDivergence = true;
+                        smtLastSymbol1HighCounter = smtSymbol1HighCounter;
+                    }
+
+                    // Check if Symbol2 has new high divergence
+                    if (smtUseSymbol2 && smtSymbol2HighCounter > smtLastSymbol2HighCounter)
+                    {
+                        if (labelText != "")
+                            labelText += " | ";
+                        labelText += GetSMTSymbolTicker(smtSymbol2Name);
+                        hasDivergence = true;
+                        smtLastSymbol2HighCounter = smtSymbol2HighCounter;
+                    }
+                }
+                else
+                {
+                    // Check if Symbol1 has new low divergence
+                    if (smtUseSymbol1 && smtSymbol1LowCounter > smtLastSymbol1LowCounter)
+                    {
+                        labelText = GetSMTSymbolTicker(smtSymbol1Name);
+                        hasDivergence = true;
+                        smtLastSymbol1LowCounter = smtSymbol1LowCounter;
+                    }
+
+                    // Check if Symbol2 has new low divergence
+                    if (smtUseSymbol2 && smtSymbol2LowCounter > smtLastSymbol2LowCounter)
+                    {
+                        if (labelText != "")
+                            labelText += " | ";
+                        labelText += GetSMTSymbolTicker(smtSymbol2Name);
+                        hasDivergence = true;
+                        smtLastSymbol2LowCounter = smtSymbol2LowCounter;
+                    }
+                }
+
+                // Draw label if there's a new divergence
+                if (hasDivergence && labelText != "")
+                {
+                    Brush bgColor = isHigh ? smtSwingHighColor : smtSwingLowColor;
+                    string tag = $"SMT_Label_{smtLabelCounter++}";
+                    int yOffset = isHigh ? 10 : -10;
+
+                    Draw.Text(this, tag, false, labelText,
+                        swing.Time, swing.Price, yOffset,
+                        smtLabelTextColor, new SimpleFont("Arial", 10),
+                        TextAlignment.Center, bgColor, bgColor, 100);
+
+                    Print($"Drew SMT label: {tag} with text '{labelText}' at {swing.Price:F2}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Print($"Error drawing SMT label: {ex.Message}");
+            }
+        }
+
+        // Extract ticker symbol from full symbol name (e.g., "ES 12-24" -> "ES")
+        private string GetSMTSymbolTicker(string fullSymbolName)
+        {
+            if (string.IsNullOrEmpty(fullSymbolName)) return "";
+
+            int spaceIndex = fullSymbolName.IndexOf(' ');
+            return spaceIndex > 0 ? fullSymbolName.Substring(0, spaceIndex) : fullSymbolName;
         }
 
         private bool CheckSMTDivergenceFilter(bool isLongTrade)
