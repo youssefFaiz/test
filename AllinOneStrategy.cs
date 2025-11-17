@@ -156,6 +156,37 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Counter for unique label tags
         private int swingLabelCounter = 0;
 
+        // ===== 016. SMT-Divergence Filter Settings =====
+        private bool useSMTDivergenceFilter = false;
+        private bool showSMTIndicator = true;  // Show SMT indicator on chart
+
+        // SMT Parameters (must match indicator order exactly)
+        private int smtPivotLookback = 3;
+        private bool smtUseSymbol1 = true;
+        private string smtSymbol1Name = "ES 12-24";
+        private bool smtUseSymbol2 = true;
+        private string smtSymbol2Name = "YM 12-24";
+        private bool smtCandleDirectionValidation = false;
+        private bool smtRemoveBrokenSMTs = false;
+        private int smtShortSignalBars = 10;
+        private int smtLongSignalBars = 10;
+
+        // SMT Style settings (must match indicator order)
+        private Brush smtSwingHighColor = Brushes.Red;
+        private Brush smtSwingLowColor = Brushes.Blue;
+        private int smtLineWidth = 2;
+        private Brush smtLabelTextColor = Brushes.White;
+
+        // SMT Indicator instances (one per timeframe)
+        private SMTDivergenceIndicator smtFilterChart;
+        private SMTDivergenceIndicator smtFilter1Min;
+        private SMTDivergenceIndicator smtFilter2Min;
+        private SMTDivergenceIndicator smtFilter3Min;
+        private SMTDivergenceIndicator smtFilter5Min;
+        private SMTDivergenceIndicator smtFilter15Min;
+        private SMTDivergenceIndicator smtFilter30Min;
+        private SMTDivergenceIndicator smtFilterCustom;
+
         // ===== 021. R:R Risk Reward Settings =====
         private bool useBOSStopLossRR = true;
         private int bosStopLossPlusTicks = 2;
@@ -479,8 +510,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 // ===== Add Filter Timeframe Data Series =====
-                // Add if ANY filter is enabled (HeikenAshi OR Swing Points)
-                if (useHeikenAshiFilter || useSwingPointsFilter)
+                // Add if ANY filter is enabled (HeikenAshi OR Swing Points OR SMT-Divergence)
+                if (useHeikenAshiFilter || useSwingPointsFilter || useSMTDivergenceFilter)
                 {
                     int nextIndex = 1; // Start after primary series (index 0)
 
@@ -618,6 +649,90 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         heikenAshiFilterCustom = HeikenAshi8(BarsArray[filterCustomIndex]);
                         Print($"Filter: Initialized Custom {customTimeframeMinutes}-Min HeikenAshi on BarsArray[{filterCustomIndex}]");
+                    }
+                }
+
+                // ===== Initialize SMT-Divergence Filter Indicators =====
+                if (useSMTDivergenceFilter)
+                {
+                    Print("=== SMT-Divergence Filter Initialization ===");
+
+                    // Chart timeframe (always primary series index 0)
+                    if (useChartTimeframe)
+                    {
+                        smtFilterChart = SMTDivergenceIndicator(smtPivotLookback, smtUseSymbol1, smtSymbol1Name,
+                            smtUseSymbol2, smtSymbol2Name, smtCandleDirectionValidation, smtRemoveBrokenSMTs,
+                            smtShortSignalBars, smtLongSignalBars, smtSwingHighColor, smtSwingLowColor,
+                            smtLineWidth, smtLabelTextColor);
+
+                        if (showSMTIndicator)
+                            AddChartIndicator(smtFilterChart);
+
+                        Print($"Filter: Initialized Chart TF SMT-Divergence on BarsArray[0]");
+                    }
+
+                    // Other timeframes use their tracked indices
+                    if (use1MinTimeframe && filter1MinIndex > 0)
+                    {
+                        smtFilter1Min = SMTDivergenceIndicator(BarsArray[filter1MinIndex], smtPivotLookback,
+                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
+                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
+                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        Print($"Filter: Initialized 1-Min SMT-Divergence on BarsArray[{filter1MinIndex}]");
+                    }
+
+                    if (use2MinTimeframe && filter2MinIndex > 0)
+                    {
+                        smtFilter2Min = SMTDivergenceIndicator(BarsArray[filter2MinIndex], smtPivotLookback,
+                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
+                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
+                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        Print($"Filter: Initialized 2-Min SMT-Divergence on BarsArray[{filter2MinIndex}]");
+                    }
+
+                    if (use3MinTimeframe && filter3MinIndex > 0)
+                    {
+                        smtFilter3Min = SMTDivergenceIndicator(BarsArray[filter3MinIndex], smtPivotLookback,
+                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
+                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
+                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        Print($"Filter: Initialized 3-Min SMT-Divergence on BarsArray[{filter3MinIndex}]");
+                    }
+
+                    if (use5MinTimeframe && filter5MinIndex > 0)
+                    {
+                        smtFilter5Min = SMTDivergenceIndicator(BarsArray[filter5MinIndex], smtPivotLookback,
+                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
+                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
+                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        Print($"Filter: Initialized 5-Min SMT-Divergence on BarsArray[{filter5MinIndex}]");
+                    }
+
+                    if (use15MinTimeframe && filter15MinIndex > 0)
+                    {
+                        smtFilter15Min = SMTDivergenceIndicator(BarsArray[filter15MinIndex], smtPivotLookback,
+                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
+                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
+                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        Print($"Filter: Initialized 15-Min SMT-Divergence on BarsArray[{filter15MinIndex}]");
+                    }
+
+                    if (use30MinTimeframe && filter30MinIndex > 0)
+                    {
+                        smtFilter30Min = SMTDivergenceIndicator(BarsArray[filter30MinIndex], smtPivotLookback,
+                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
+                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
+                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        Print($"Filter: Initialized 30-Min SMT-Divergence on BarsArray[{filter30MinIndex}]");
+                    }
+
+                    if (useCustomTimeframe && filterCustomIndex > 0)
+                    {
+                        smtFilterCustom = SMTDivergenceIndicator(BarsArray[filterCustomIndex], smtPivotLookback,
+                            smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
+                            smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
+                            smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        Print($"Filter: Initialized Custom {customTimeframeMinutes}-Min SMT-Divergence on BarsArray[{filterCustomIndex}]");
                     }
                 }
             }
@@ -977,6 +1092,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (!isAllowed)
                     {
                         Print($"Trade BLOCKED by Swing Points Filter: {(triggerSignal.IsLong ? "LONG" : "SHORT")} trade not allowed by bias");
+                        return;
+                    }
+                }
+
+                // ===== FILTER CHECK: SMT-Divergence Filter =====
+                if (useSMTDivergenceFilter)
+                {
+                    bool isAllowed = CheckSMTDivergenceFilter(triggerSignal.IsLong);
+                    if (!isAllowed)
+                    {
+                        Print($"Trade BLOCKED by SMT-Divergence Filter: {(triggerSignal.IsLong ? "LONG" : "SHORT")} trade not allowed by divergence");
                         return;
                     }
                 }
@@ -1824,6 +1950,213 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print($"Swing Points Filter ({timeframeName}) PASSED: Neutral bias ({bullishCount} = {bearishCount}) - allowing {(isLongTrade ? "LONG" : "SHORT")}");
                 return true;
             }
+        }
+
+        private bool CheckSMTDivergenceFilter(bool isLongTrade)
+        {
+            // If no filter timeframes are selected, allow all trades
+            if (!useChartTimeframe && !use1MinTimeframe && !use2MinTimeframe &&
+                !use3MinTimeframe && !use5MinTimeframe && !use15MinTimeframe && !use30MinTimeframe && !useCustomTimeframe)
+            {
+                Print($"SMT-Divergence Filter: No timeframes selected - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
+                return true;
+            }
+
+            bool allFiltersAgree = true;
+            int filtersChecked = 0;
+
+            // Check Chart Timeframe
+            if (useChartTimeframe && smtFilterChart != null)
+            {
+                // LongSignal (Values[1]) = bullish divergence, allows LONG
+                // ShortSignal (Values[0]) = bearish divergence, allows SHORT
+                double shortSignal = smtFilterChart.ShortSignal[0];
+                double longSignal = smtFilterChart.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)  // LONG trade but NO bullish divergence
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: Chart TF has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)  // SHORT trade but NO bearish divergence
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: Chart TF has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (Chart TF): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            // Check 1-Min Timeframe
+            if (use1MinTimeframe && smtFilter1Min != null && filter1MinIndex > 0)
+            {
+                double shortSignal = smtFilter1Min.ShortSignal[0];
+                double longSignal = smtFilter1Min.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 1-Min has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 1-Min has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (1-Min): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            // Check 2-Min Timeframe
+            if (use2MinTimeframe && smtFilter2Min != null && filter2MinIndex > 0)
+            {
+                double shortSignal = smtFilter2Min.ShortSignal[0];
+                double longSignal = smtFilter2Min.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 2-Min has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 2-Min has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (2-Min): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            // Check 3-Min Timeframe
+            if (use3MinTimeframe && smtFilter3Min != null && filter3MinIndex > 0)
+            {
+                double shortSignal = smtFilter3Min.ShortSignal[0];
+                double longSignal = smtFilter3Min.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 3-Min has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 3-Min has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (3-Min): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            // Check 5-Min Timeframe
+            if (use5MinTimeframe && smtFilter5Min != null && filter5MinIndex > 0)
+            {
+                double shortSignal = smtFilter5Min.ShortSignal[0];
+                double longSignal = smtFilter5Min.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 5-Min has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 5-Min has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (5-Min): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            // Check 15-Min Timeframe
+            if (use15MinTimeframe && smtFilter15Min != null && filter15MinIndex > 0)
+            {
+                double shortSignal = smtFilter15Min.ShortSignal[0];
+                double longSignal = smtFilter15Min.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 15-Min has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 15-Min has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (15-Min): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            // Check 30-Min Timeframe
+            if (use30MinTimeframe && smtFilter30Min != null && filter30MinIndex > 0)
+            {
+                double shortSignal = smtFilter30Min.ShortSignal[0];
+                double longSignal = smtFilter30Min.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 30-Min has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: 30-Min has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (30-Min): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            // Check Custom Timeframe
+            if (useCustomTimeframe && smtFilterCustom != null && filterCustomIndex > 0)
+            {
+                double shortSignal = smtFilterCustom.ShortSignal[0];
+                double longSignal = smtFilterCustom.LongSignal[0];
+                filtersChecked++;
+
+                if (isLongTrade && longSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: Custom {customTimeframeMinutes}-Min has no bullish divergence (LongSignal={longSignal}) - blocking LONG trade");
+                    allFiltersAgree = false;
+                }
+                else if (!isLongTrade && shortSignal == 0)
+                {
+                    Print($"SMT-Divergence Filter BLOCKED: Custom {customTimeframeMinutes}-Min has no bearish divergence (ShortSignal={shortSignal}) - blocking SHORT trade");
+                    allFiltersAgree = false;
+                }
+                else
+                {
+                    Print($"SMT-Divergence Filter (Custom {customTimeframeMinutes}-Min): {(isLongTrade ? "LongSignal" : "ShortSignal")}={(isLongTrade ? longSignal : shortSignal)} - allowing {(isLongTrade ? "LONG" : "SHORT")}");
+                }
+            }
+
+            if (allFiltersAgree)
+            {
+                Print($"SMT-Divergence Filter PASSED: All {filtersChecked} timeframe(s) agree - allowing {(isLongTrade ? "LONG" : "SHORT")} trade");
+            }
+
+            return allFiltersAgree;
         }
 
         // ===== BOS Detection Logic (TradingView Style) =====
@@ -4516,6 +4849,155 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             get { return showSwingLabels; }
             set { showSwingLabels = value; }
+        }
+
+        // ===== 016. SMT-Divergence Filter Settings =====
+        [NinjaScriptProperty]
+        [Display(Name="016.01 Use SMT-Divergence as Filter", Order=160101, GroupName="016. ===SMT-Divergence Filter===")]
+        public bool UseSMTDivergenceFilter
+        {
+            get { return useSMTDivergenceFilter; }
+            set { useSMTDivergenceFilter = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="016.02 Show SMT Indicator on Chart", Order=160102, GroupName="016. ===SMT-Divergence Filter===")]
+        public bool ShowSMTIndicator
+        {
+            get { return showSMTIndicator; }
+            set { showSMTIndicator = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Range(1, 50)]
+        [Display(Name="016.03 SMT Pivot Lookback", Order=160103, GroupName="016. ===SMT-Divergence Filter===")]
+        public int SMTPivotLookback
+        {
+            get { return smtPivotLookback; }
+            set { smtPivotLookback = Math.Max(1, Math.Min(50, value)); }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="016.04 Use Symbol 1", Order=160104, GroupName="016. ===SMT-Divergence Filter===")]
+        public bool SMTUseSymbol1
+        {
+            get { return smtUseSymbol1; }
+            set { smtUseSymbol1 = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="016.05 Symbol 1 Name", Order=160105, GroupName="016. ===SMT-Divergence Filter===")]
+        public string SMTSymbol1Name
+        {
+            get { return smtSymbol1Name; }
+            set { smtSymbol1Name = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="016.06 Use Symbol 2", Order=160106, GroupName="016. ===SMT-Divergence Filter===")]
+        public bool SMTUseSymbol2
+        {
+            get { return smtUseSymbol2; }
+            set { smtUseSymbol2 = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="016.07 Symbol 2 Name", Order=160107, GroupName="016. ===SMT-Divergence Filter===")]
+        public string SMTSymbol2Name
+        {
+            get { return smtSymbol2Name; }
+            set { smtSymbol2Name = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="016.08 Candle Direction Validation", Order=160108, GroupName="016. ===SMT-Divergence Filter===")]
+        public bool SMTCandleDirectionValidation
+        {
+            get { return smtCandleDirectionValidation; }
+            set { smtCandleDirectionValidation = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="016.09 Remove Broken SMTs", Order=160109, GroupName="016. ===SMT-Divergence Filter===")]
+        public bool SMTRemoveBrokenSMTs
+        {
+            get { return smtRemoveBrokenSMTs; }
+            set { smtRemoveBrokenSMTs = value; }
+        }
+
+        [NinjaScriptProperty]
+        [Range(1, 100)]
+        [Display(Name="016.10 Short Signal Duration (Bars)", Order=160110, GroupName="016. ===SMT-Divergence Filter===")]
+        public int SMTShortSignalBars
+        {
+            get { return smtShortSignalBars; }
+            set { smtShortSignalBars = Math.Max(1, Math.Min(100, value)); }
+        }
+
+        [NinjaScriptProperty]
+        [Range(1, 100)]
+        [Display(Name="016.11 Long Signal Duration (Bars)", Order=160111, GroupName="016. ===SMT-Divergence Filter===")]
+        public int SMTLongSignalBars
+        {
+            get { return smtLongSignalBars; }
+            set { smtLongSignalBars = Math.Max(1, Math.Min(100, value)); }
+        }
+
+        [NinjaScriptProperty]
+        [XmlIgnore]
+        [Display(Name="016.12 Swing High Color", Order=160112, GroupName="016. ===SMT-Divergence Filter===")]
+        public Brush SMTSwingHighColor
+        {
+            get { return smtSwingHighColor; }
+            set { smtSwingHighColor = value; }
+        }
+
+        [Browsable(false)]
+        public string SMTSwingHighColorSerializable
+        {
+            get { return Serialize.BrushToString(smtSwingHighColor); }
+            set { smtSwingHighColor = Serialize.StringToBrush(value); }
+        }
+
+        [NinjaScriptProperty]
+        [XmlIgnore]
+        [Display(Name="016.13 Swing Low Color", Order=160113, GroupName="016. ===SMT-Divergence Filter===")]
+        public Brush SMTSwingLowColor
+        {
+            get { return smtSwingLowColor; }
+            set { smtSwingLowColor = value; }
+        }
+
+        [Browsable(false)]
+        public string SMTSwingLowColorSerializable
+        {
+            get { return Serialize.BrushToString(smtSwingLowColor); }
+            set { smtSwingLowColor = Serialize.StringToBrush(value); }
+        }
+
+        [NinjaScriptProperty]
+        [Range(1, 10)]
+        [Display(Name="016.14 Line Width", Order=160114, GroupName="016. ===SMT-Divergence Filter===")]
+        public int SMTLineWidth
+        {
+            get { return smtLineWidth; }
+            set { smtLineWidth = Math.Max(1, Math.Min(10, value)); }
+        }
+
+        [NinjaScriptProperty]
+        [XmlIgnore]
+        [Display(Name="016.15 Label Text Color", Order=160115, GroupName="016. ===SMT-Divergence Filter===")]
+        public Brush SMTLabelTextColor
+        {
+            get { return smtLabelTextColor; }
+            set { smtLabelTextColor = value; }
+        }
+
+        [Browsable(false)]
+        public string SMTLabelTextColorSerializable
+        {
+            get { return Serialize.BrushToString(smtLabelTextColor); }
+            set { smtLabelTextColor = Serialize.StringToBrush(value); }
         }
 
         // ===== 021. R:R Risk Reward Settings =====
