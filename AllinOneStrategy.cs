@@ -1576,10 +1576,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Swing lows (HL/LL) go BELOW the candle
                 int yPixelOffset = swingPoint.IsHigh ? -20 : 20;  // Negative = above, Positive = below
 
+                // Calculate barsAgo from absolute bar index
                 // CRITICAL: Use PrimaryBarIndex to draw on the primary chart (first bar of HTF period)
-                Draw.Text(this, tag, labelText, swingPoint.PrimaryBarIndex, swingPoint.Price, yPixelOffset, labelColor);
+                int barsAgo = CurrentBar - swingPoint.PrimaryBarIndex;
 
-                Print($"Drew {labelText} label at primary bar {swingPoint.PrimaryBarIndex}, price {swingPoint.Price:F2}, color {labelColor}");
+                // Draw text label with correct Draw.Text signature
+                // Draw.Text(owner, tag, isAutoScale, text, barsAgo, y, yPixelOffset, brush, font, alignment, outlineBrush, areaBrush, areaOpacity)
+                Draw.Text(this, tag, false, labelText, barsAgo, swingPoint.Price, yPixelOffset, labelColor, new SimpleFont("Arial", 10), TextAlignment.Center, Brushes.Transparent, Brushes.Transparent, 0);
+
+                Print($"Drew {labelText} label at barsAgo {barsAgo} (primary bar {swingPoint.PrimaryBarIndex}), price {swingPoint.Price:F2}, color {labelColor}");
             }
             catch (Exception ex)
             {
