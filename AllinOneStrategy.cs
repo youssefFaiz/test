@@ -120,6 +120,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool useSwingPointsFilter = false;
         private int swingPointsLastCount = 8;        // Number of last swing points to check
         private int swingPointsSensitivity = 5;      // Sensitivity for swing detection
+        private bool showSwingLabels = true;         // Display HH/HL/LL/LH labels on chart
+
+        // Hardcoded colors for each timeframe's swing labels
+        private Brush swingLabelColorChart = Brushes.White;
+        private Brush swingLabelColor1Min = Brushes.Yellow;
+        private Brush swingLabelColor2Min = Brushes.Orange;
+        private Brush swingLabelColor3Min = Brushes.Cyan;
+        private Brush swingLabelColor5Min = Brushes.Lime;
+        private Brush swingLabelColor15Min = Brushes.Magenta;
+        private Brush swingLabelColor30Min = Brushes.DeepSkyBlue;
+        private Brush swingLabelColorCustom = Brushes.Gold;
 
         // Swing Points tracking for bias calculation (one list per timeframe)
         public enum SwingType { HH, HL, LL, LH }
@@ -129,6 +140,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             public int BarIndex { get; set; }
             public bool IsHigh { get; set; }         // true = swing high, false = swing low
             public SwingType? Type { get; set; }     // HH, HL, LL, or LH
+            public int PrimaryBarIndex { get; set; } // For drawing on primary chart (HTF support)
         }
 
         // Separate swing history for each timeframe
@@ -140,6 +152,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private List<SwingPointData> swingHistory15Min = new List<SwingPointData>();
         private List<SwingPointData> swingHistory30Min = new List<SwingPointData>();
         private List<SwingPointData> swingHistoryCustom = new List<SwingPointData>();
+
+        // Counter for unique label tags
+        private int swingLabelCounter = 0;
 
         // ===== 021. R:R Risk Reward Settings =====
         private bool useBOSStopLossRR = true;
@@ -1414,49 +1429,49 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Chart Timeframe (BarsInProgress == 0)
                 if (useChartTimeframe && BarsInProgress == 0)
                 {
-                    UpdateSwingPointsForTimeframe(0, swingHistoryChart, "Chart TF");
+                    UpdateSwingPointsForTimeframe(0, swingHistoryChart, "Chart TF", swingLabelColorChart);
                 }
 
                 // 1-Min Timeframe
                 if (use1MinTimeframe && filter1MinIndex > 0 && BarsInProgress == filter1MinIndex)
                 {
-                    UpdateSwingPointsForTimeframe(filter1MinIndex, swingHistory1Min, "1-Min");
+                    UpdateSwingPointsForTimeframe(filter1MinIndex, swingHistory1Min, "1-Min", swingLabelColor1Min);
                 }
 
                 // 2-Min Timeframe
                 if (use2MinTimeframe && filter2MinIndex > 0 && BarsInProgress == filter2MinIndex)
                 {
-                    UpdateSwingPointsForTimeframe(filter2MinIndex, swingHistory2Min, "2-Min");
+                    UpdateSwingPointsForTimeframe(filter2MinIndex, swingHistory2Min, "2-Min", swingLabelColor2Min);
                 }
 
                 // 3-Min Timeframe
                 if (use3MinTimeframe && filter3MinIndex > 0 && BarsInProgress == filter3MinIndex)
                 {
-                    UpdateSwingPointsForTimeframe(filter3MinIndex, swingHistory3Min, "3-Min");
+                    UpdateSwingPointsForTimeframe(filter3MinIndex, swingHistory3Min, "3-Min", swingLabelColor3Min);
                 }
 
                 // 5-Min Timeframe
                 if (use5MinTimeframe && filter5MinIndex > 0 && BarsInProgress == filter5MinIndex)
                 {
-                    UpdateSwingPointsForTimeframe(filter5MinIndex, swingHistory5Min, "5-Min");
+                    UpdateSwingPointsForTimeframe(filter5MinIndex, swingHistory5Min, "5-Min", swingLabelColor5Min);
                 }
 
                 // 15-Min Timeframe
                 if (use15MinTimeframe && filter15MinIndex > 0 && BarsInProgress == filter15MinIndex)
                 {
-                    UpdateSwingPointsForTimeframe(filter15MinIndex, swingHistory15Min, "15-Min");
+                    UpdateSwingPointsForTimeframe(filter15MinIndex, swingHistory15Min, "15-Min", swingLabelColor15Min);
                 }
 
                 // 30-Min Timeframe
                 if (use30MinTimeframe && filter30MinIndex > 0 && BarsInProgress == filter30MinIndex)
                 {
-                    UpdateSwingPointsForTimeframe(filter30MinIndex, swingHistory30Min, "30-Min");
+                    UpdateSwingPointsForTimeframe(filter30MinIndex, swingHistory30Min, "30-Min", swingLabelColor30Min);
                 }
 
                 // Custom Timeframe
                 if (useCustomTimeframe && filterCustomIndex > 0 && BarsInProgress == filterCustomIndex)
                 {
-                    UpdateSwingPointsForTimeframe(filterCustomIndex, swingHistoryCustom, $"Custom {customTimeframeMinutes}-Min");
+                    UpdateSwingPointsForTimeframe(filterCustomIndex, swingHistoryCustom, $"Custom {customTimeframeMinutes}-Min", swingLabelColorCustom);
                 }
             }
             catch (Exception ex)
@@ -1465,7 +1480,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        private void UpdateSwingPointsForTimeframe(int barsIndex, List<SwingPointData> swingHistory, string timeframeName)
+        private void UpdateSwingPointsForTimeframe(int barsIndex, List<SwingPointData> swingHistory, string timeframeName, Brush labelColor)
         {
             // Detect swing highs and lows using built-in Swing indicator for specific timeframe
             if (CurrentBars[barsIndex] < swingPointsSensitivity * 2)
@@ -1486,6 +1501,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             Price = swingHigh.Value,
                             BarIndex = CurrentBars[barsIndex],
+                            PrimaryBarIndex = CurrentBar,  // CRITICAL: Store primary chart bar index for drawing
                             IsHigh = true,
                             Type = null  // Will be classified below
                         };
@@ -1494,7 +1510,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ClassifySwingPoint(newSwingHigh, swingHistory);
 
                         swingHistory.Add(newSwingHigh);
-                        Print($"Swing Filter ({timeframeName}): New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, Bar: {CurrentBars[barsIndex]}");
+                        Print($"Swing Filter ({timeframeName}): New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, HTF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
+
+                        // Draw label on primary chart (only on the first bar of HTF period)
+                        if (showSwingLabels && newSwingHigh.Type != null)
+                        {
+                            DrawSwingLabel(newSwingHigh, timeframeName, labelColor);
+                        }
                     }
                 }
 
@@ -1511,6 +1533,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             Price = swingLow.Value,
                             BarIndex = CurrentBars[barsIndex],
+                            PrimaryBarIndex = CurrentBar,  // CRITICAL: Store primary chart bar index for drawing
                             IsHigh = false,
                             Type = null  // Will be classified below
                         };
@@ -1519,7 +1542,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ClassifySwingPoint(newSwingLow, swingHistory);
 
                         swingHistory.Add(newSwingLow);
-                        Print($"Swing Filter ({timeframeName}): New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, Bar: {CurrentBars[barsIndex]}");
+                        Print($"Swing Filter ({timeframeName}): New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, HTF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
+
+                        // Draw label on primary chart (only on the first bar of HTF period)
+                        if (showSwingLabels && newSwingLow.Type != null)
+                        {
+                            DrawSwingLabel(newSwingLow, timeframeName, labelColor);
+                        }
                     }
                 }
 
@@ -1532,6 +1561,29 @@ namespace NinjaTrader.NinjaScript.Strategies
             catch (Exception ex)
             {
                 Print($"Error updating swings for {timeframeName}: {ex.Message}");
+            }
+        }
+
+        private void DrawSwingLabel(SwingPointData swingPoint, string timeframeName, Brush labelColor)
+        {
+            try
+            {
+                string labelText = swingPoint.Type.ToString();  // HH, HL, LL, or LH
+                string tag = $"SwingLabel_{timeframeName}_{swingLabelCounter++}";
+
+                // Calculate vertical offset for text position
+                // Swing highs (HH/LH) go ABOVE the candle
+                // Swing lows (HL/LL) go BELOW the candle
+                int yPixelOffset = swingPoint.IsHigh ? -20 : 20;  // Negative = above, Positive = below
+
+                // CRITICAL: Use PrimaryBarIndex to draw on the primary chart (first bar of HTF period)
+                Draw.Text(this, tag, labelText, swingPoint.PrimaryBarIndex, swingPoint.Price, yPixelOffset, labelColor);
+
+                Print($"Drew {labelText} label at primary bar {swingPoint.PrimaryBarIndex}, price {swingPoint.Price:F2}, color {labelColor}");
+            }
+            catch (Exception ex)
+            {
+                Print($"Error drawing swing label: {ex.Message}");
             }
         }
 
@@ -4431,6 +4483,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             get { return swingPointsSensitivity; }
             set { swingPointsSensitivity = Math.Max(1, Math.Min(20, value)); }
+        }
+
+        [NinjaScriptProperty]
+        [Display(Name="019.04 Show Swing Point Labels", Order=190104, GroupName="019. ===Swing Points Filter===")]
+        public bool ShowSwingLabels
+        {
+            get { return showSwingLabels; }
+            set { showSwingLabels = value; }
         }
 
         // ===== 021. R:R Risk Reward Settings =====
