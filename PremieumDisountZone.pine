@@ -1,0 +1,462 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © CandelaCharts
+
+//@version=6
+indicator("CandelaCharts - Premium & Discount", shorttitle = "CandelaCharts - Premium & Discount", overlay = true, dynamic_requests = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500, max_bars_back = 5000, max_polylines_count = 100)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   Colors   |
+// # ========================================================================= #
+
+//#region
+
+// # Core -------------------------------------------------------------------- #
+
+colors_white                        = color.white
+colors_black                        = color.black
+colors_green                        = color.green
+colors_red                          = color.red
+colors_orange                       = color.orange
+colors_blue                         = color.blue
+colors_gray                         = color.gray
+colors_silver                       = color.silver
+colors_transparent                  = color.new(color.white, 100)
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   Inputs   |
+// # ========================================================================= #
+
+//#region
+
+// # General ----------------------------------------------------------------- #
+
+general_font                        = input.string("Monospace", "Text Style         ", options = ["Default", "Monospace"], inline = "1", group = "General")
+general_text                        = input.string("Tiny", "", options = ["Tiny", "Small", "Normal", "Large", "Huge", "Auto"], inline = "1", group = "General", tooltip = "Customize global text size and style")
+general_brand_show                  = input.bool(false, "Hide Brand", group = "General")
+
+// # Premium & Discount ---------------------------------------------------- #
+
+pd_options                          = input.string("Custom", "Range              ", inline = "1.0", options = ["Auto", "Custom"], group = "Settings")
+pd_length                           = input.int(20, "", inline = "1.0", group = "Settings", tooltip = "[Auto] - Premium & Discount detection based on Swings.\n[Custom] - Premium & Discount detection based on user defined input.", minval = 1)
+pd_start                            = input.time(timestamp("01 Jan 2025 00:00:00 UTC-5"), "                       ", confirm = true, inline = "2.0", group = "Settings")
+pd_end                              = input.time(timestamp("02 Jan 2025 00:00:00 UTC-5"), "                       ", confirm = true, inline = "2.1", group = "Settings", tooltip = "Setting aplicable only for Custom option.")
+pd_mode                             = input.string("Pro", "Mode               ", inline = "3.0", options = ["Pro", "Solid", "Outlined", "Flat"], group = "Settings")
+pd_line_type                        = input.string("⎯⎯⎯", "                       ", inline = "3.1", group = "Settings", options = ["⎯⎯⎯", "----", "····"])
+pd_line_width                       = input.int(1, "", inline = "3.1", group = "Settings", minval = 0, maxval = 5)
+pd_premium_css                      = input.color(colors_green, "Premium           ", inline = "4.0", group = "Settings")
+pd_discount_css                     = input.color(colors_red, "Discount           ", inline = "5.0", group = "Settings")
+pd_equilibrium_show                 = input.bool(true, "Equilibrium", inline = "6.0", group = "Settings")
+pd_equilibrum_css                   = input.color(colors_silver, "", inline = "6.0", group = "Settings", tooltip = "Display Equilibrium Zone")
+pd_labels_show                      = input.bool(true, "Labels ", inline = "7.0", group = "Settings")
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   UDT   |
+// # ========================================================================= #
+
+//#region
+
+type UDT_MS_Pnl
+	float[] p
+	int  [] n
+    float[] l
+
+type UDT_MS
+    int    trend
+	int    x1
+    int    x2
+	float  p
+	bool   bull
+    bool   swing
+
+type UDT_HL
+    int    x
+    int    x_hl
+    float  y
+    int    right
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   Variables   |
+// # ========================================================================= #
+
+//#region
+
+var swing_high = UDT_HL.new()
+var swing_low  = UDT_HL.new()
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   Functions   |
+// # ========================================================================= #
+
+//#region
+
+method text_size(string size) =>
+    out = switch size
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        "Huge"   => size.huge
+        "Auto"   => size.auto
+    out
+
+method line_style(string style) =>
+    out = switch style
+        'None'   => ""
+        '⎯⎯⎯'  => line.style_solid
+        '----'   => line.style_dashed
+        '····'   => line.style_dotted
+
+method font_style(string font) =>
+    out = switch font
+        'Default'   => font.family_default
+        'Monospace' => font.family_monospace
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   Swings   |
+// # ========================================================================= #
+
+//#region
+
+swings(len)=>    
+    upper = ta.highest(len)
+    lower = ta.lowest(len)
+
+    var float out = 0
+    out := high[len] > upper ? 0 : low[len] < lower ? 1 : out[1]
+
+    float top = out == 0 and out[1] != 0 ? high[len] : 0
+    float btm = out == 1 and out[1] != 1 ? low[len] : 0
+
+    [top, btm]
+
+[s_ms_top, s_ms_btm] = swings(pd_length)
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   Premium/Discount   |
+// # ========================================================================= #
+
+//#region
+
+shift_bars_to_right(int bars) => 
+    bars + 20
+
+method detect_phl(UDT_HL swing_hl, bool bull, float swing, int len) =>
+    swing_hl_t = swing_hl.y
+
+    if swing > 0
+        swing_hl.x      := bar_index - len
+        swing_hl.y      := swing
+        swing_hl.x_hl   := bar_index - len
+
+    swing_hl.y          := bull ? math.max(high, swing_hl.y) : math.min(low, swing_hl.y)
+    swing_hl.x_hl       := bull ? (swing_hl.y == high ? bar_index : swing_hl.x_hl) : (swing_hl.y == low ? bar_index : swing_hl.x_hl)
+    swing_hl.x          := swing_hl.x_hl
+    swing_hl.right      := shift_bars_to_right(bar_index)
+
+    swing_hl
+
+draw_solid_pd(UDT_HL swing_high, UDT_HL swing_low) =>
+    left = int(math.min(swing_high.x, swing_low.x))
+    right = swing_high.right
+    premium_bg_clr = color.new(pd_premium_css, 90)
+    equilibrum_bg_clr = color.new(pd_equilibrum_css, 90)
+    discount_bg_clr = color.new(pd_discount_css, 90)
+
+    var pbx = box.new(left = left, top = 0, right = right, bottom = 0, bgcolor = premium_bg_clr,  border_color = premium_bg_clr)
+    pbx.set_lefttop(left = left, top = swing_high.y)
+    pbx.set_rightbottom(right = right, bottom = 0.95  * swing_high.y + 0.05 * swing_low.y)
+
+    if pd_equilibrium_show
+        var ebx = box.new(left = left, top = 0, right = right, bottom = 0, bgcolor = equilibrum_bg_clr, border_color = equilibrum_bg_clr)
+        ebx.set_lefttop(left = left, top = 0.525 * swing_high.y + 0.475 * swing_low.y)
+        ebx.set_rightbottom(right = right, bottom = 0.525 * swing_low.y + 0.475 * swing_high.y)
+    
+    var dbx = box.new(left = left, top = 0, right = right, bottom = 0, bgcolor = discount_bg_clr, border_color = discount_bg_clr)
+    dbx.set_lefttop(left = left, top = 0.95 * swing_low.y + 0.05 * swing_high.y)
+    dbx.set_rightbottom(right = right, bottom = swing_low.y)
+
+draw_outlined_pd(UDT_HL swing_high, UDT_HL swing_low) =>
+    left = int(math.min(swing_high.x, swing_low.x))
+    right = swing_high.right
+    border_style = line_style(pd_line_type)
+    border_width = pd_line_width
+
+    var pbx = box.new(left = left, top = 0, right = right, bottom = 0, bgcolor = colors_transparent, border_color = pd_premium_css, border_width = border_width, border_style = border_style)
+    pbx.set_lefttop(left = left, top = swing_high.y)
+    pbx.set_rightbottom(right = right, bottom = 0.95  * swing_high.y + 0.05 * swing_low.y)
+    
+    if pd_equilibrium_show
+        var ebx = box.new(left = left, top = 0, right = right, bottom = 0, bgcolor = colors_transparent, border_color = pd_equilibrum_css, border_width = border_width, border_style = border_style)
+        ebx.set_lefttop(left = left, top = 0.525 * swing_high.y + 0.475 * swing_low.y)
+        ebx.set_rightbottom(right = right, bottom = 0.525 * swing_low.y + 0.475 * swing_high.y)
+    
+    var dbx = box.new(left = left, top =  0, right = right, bottom = 0, bgcolor = colors_transparent, border_color = pd_discount_css, border_width = border_width, border_style = border_style)
+    dbx.set_lefttop(left = left, top =  0.95 * swing_low.y + 0.05 * swing_high.y)
+    dbx.set_rightbottom(right = right, bottom = swing_low.y)
+
+draw_flat_pd(UDT_HL swing_high, UDT_HL swing_low) =>
+    x2 = swing_high.right
+    width = pd_line_width
+    style = line_style(pd_line_type)
+
+    var pl = line.new(x1 = swing_high.x_hl, y1 = 0, x2 = x2, y2 = 0, width = width, color = pd_premium_css, style = style)
+    pl.set_xy1(x = swing_high.x_hl, y = swing_high.y)
+    pl.set_xy2(x = x2, y = swing_high.y)
+
+    if pd_equilibrium_show
+        left  = (swing_low.x_hl + x2) > (swing_high.x_hl + x2) ? swing_high.x_hl : swing_low.x_hl
+        avg   = math.avg(swing_low.y, swing_high.y)
+
+        var el = line.new(x1 = left, y1 = 0, x2 = x2, y2 = 0, color = pd_equilibrum_css, width = width, style = style)
+        el.set_xy1(x = left, y = avg)
+        el.set_xy2(x = x2, y = avg)
+
+    var dl = line.new(x1 = swing_low.x_hl, y1 = 0, x2 = x2, y2 = 0, width = width, color = pd_discount_css, style = style)
+    dl.set_xy1(x = swing_low.x_hl, y = swing_low.y)
+    dl.set_xy2(x = x2, y = swing_low.y)
+
+draw_pro_pd(UDT_HL swing_high, UDT_HL swing_low) =>
+    left = int(math.min(swing_high.x, swing_low.x))
+    right = swing_high.right
+    avg   = math.avg(swing_low.y, swing_high.y)
+    premium_bg_clr = color.new(pd_premium_css, 90)
+    discount_bg_clr = color.new(pd_discount_css, 90)
+    width = pd_line_width
+    style = line_style(pd_line_type)
+
+    var pl = line.new(x1 = left, y1 = 0, x2 = right, y2 = 0, width = width, color = pd_premium_css, style = style)
+    pl.set_xy1(x = left, y =  swing_high.y)
+    pl.set_xy2(x = right, y = swing_high.y)
+
+    var pbx = box.new(left = left, top = 0, right = right, bottom = 0, bgcolor = premium_bg_clr,  border_color = colors_transparent)
+    pbx.set_lefttop(left = left, top = swing_high.y)
+    pbx.set_rightbottom(right = right, bottom = avg)
+
+    if pd_equilibrium_show
+        var el = line.new(x1 = left, y1 = 0, x2 = right, y2 = 0, color = pd_equilibrum_css, width = width, style = style)
+        el.set_xy1(x = left, y = avg)
+        el.set_xy2(x = right, y = avg)
+
+    var dl = line.new(x1 = left, y1 = 0, x2 = right, y2 = 0, width = width, color = pd_discount_css, style = style)
+    dl.set_xy1(x = left, y = swing_low.y)
+    dl.set_xy2(x = right, y = swing_low.y)
+
+    var dbx = box.new(left = left, top = 0, right = right, bottom = 0, bgcolor = discount_bg_clr, border_color = colors_transparent)
+    dbx.set_lefttop(left = left, top = avg)
+    dbx.set_rightbottom(right = right, bottom = swing_low.y)
+
+draw_pd_labels(UDT_HL swing_high, UDT_HL swing_low) =>
+    x = swing_high.right
+    txt_size = text_size(general_text)
+    font_family = font_style(general_font)
+
+    var plb = label.new(x = x, y = 0, text = "Premium", color = colors_transparent, textcolor = color.new(pd_premium_css, 0), style = label.style_label_left, size = txt_size, text_font_family = font_family)
+    plb.set_xy(x = x, y = swing_high.y)
+
+    if pd_equilibrium_show
+        var elb = label.new(x = x, y = 0, text = "Equilibrium", color = colors_transparent, textcolor = color.new(pd_equilibrum_css, 0), style = label.style_label_left, size = txt_size, text_font_family = font_family)
+        elb.set_xy(x = x, y = math.avg(swing_low.y, swing_high.y))
+
+    var dlb = label.new(x = x, y = 0, text = "Discount", color = colors_transparent, textcolor = color.new(pd_discount_css, 0), style = label.style_label_left, size = txt_size, text_font_family = font_family)
+    dlb.set_xy(x = x, y = swing_low.y)
+
+draw_pd(UDT_HL swing_high, UDT_HL swing_low) =>
+    switch pd_mode
+        "Solid" => draw_solid_pd(swing_high, swing_low)
+        "Outlined" => draw_outlined_pd(swing_high, swing_low)
+        "Flat" => draw_flat_pd(swing_high, swing_low)
+        "Pro" => draw_pro_pd(swing_high, swing_low)
+        => na
+
+    if pd_labels_show
+        draw_pd_labels(swing_high, swing_low)
+
+calc_pd_custom(UDT_HL swing_high, UDT_HL swing_low) =>
+    if time >= pd_start and time <= pd_end
+        if na(swing_high.x)
+            swing_high.x := bar_index
+            swing_high.x_hl := bar_index
+            swing_high.y := high
+
+        if high > swing_high.y
+            swing_high.x_hl := bar_index
+            swing_high.y := high
+
+        if na(swing_low.x)
+            swing_low.x := bar_index
+            swing_low.x_hl := bar_index
+            swing_low.y := low
+
+        if low < swing_low.y
+            swing_low.x_hl := bar_index
+            swing_low.y := low
+
+        swing_high.right := bar_index
+        swing_low.right  := bar_index
+
+switch pd_options
+    "Auto" =>
+        swing_high.detect_phl(true , s_ms_top, pd_length)
+        swing_low .detect_phl(false, s_ms_btm, pd_length)
+    "Custom" =>
+        calc_pd_custom(swing_high, swing_low)
+    => na
+
+if barstate.islast
+    if not na(swing_high.x) and not na(swing_low.x)
+        draw_pd(swing_high, swing_low)
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
+
+
+
+
+
+
+
+
+
+
+
+
+
+// # ========================================================================= #
+// # |   Brand   |
+// # ========================================================================= #
+
+//#region
+
+if barstate.isfirst and general_brand_show == false
+    var table brand = table.new(position.bottom_right, 1, 1, bgcolor = chart.bg_color)
+    table.cell(brand, 0, 0,  "© CandelaCharts", text_color = colors_gray, text_halign = text.align_center, text_size = text_size(general_text), text_font_family = font_style(general_font))
+
+//#endregion
+
+// # ========================================================================= #
+// # |   End   |
+// # ========================================================================= #
