@@ -479,8 +479,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 // ===== Add Filter Timeframe Data Series =====
-                // Only add if HeikenAshi filter is enabled
-                if (useHeikenAshiFilter)
+                // Add if ANY filter is enabled (HeikenAshi OR Swing Points)
+                if (useHeikenAshiFilter || useSwingPointsFilter)
                 {
                     int nextIndex = 1; // Start after primary series (index 0)
 
