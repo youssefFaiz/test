@@ -1493,6 +1493,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double? swingHigh = Swing(swingPointsSensitivity).SwingHigh[0];
                 double? swingLow = Swing(swingPointsSensitivity).SwingLow[0];
 
+                // Debug: Print what Swing indicator returns
+                if (CurrentBar % 100 == 0 && BarsInProgress == barsIndex)
+                {
+                    Print($"DEBUG ({timeframeName}): Swing indicator check - SwingHigh={swingHigh}, SwingLow={swingLow}, CurrentBar={CurrentBar}, BarsInProgress={BarsInProgress}");
+                }
+
                 // Check for new swing high
                 if (swingHigh != null && swingHigh > 0)
                 {
@@ -1514,12 +1520,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ClassifySwingPoint(newSwingHigh, swingHistory);
 
                         swingHistory.Add(newSwingHigh);
-                        Print($"Swing Filter ({timeframeName}): New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, TF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
+                        Print($"Swing Filter ({timeframeName}): New Swing HIGH at {swingHigh.Value:F2}, Type: {newSwingHigh.Type}, TF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}, State: {State}");
 
-                        // Draw label on primary chart (only on the first bar of HTF period)
-                        if (showSwingLabels && newSwingHigh.Type != null)
+                        // Draw label on primary chart (only when not historical processing)
+                        if (showSwingLabels && newSwingHigh.Type != null && State != State.Historical)
                         {
                             DrawSwingLabel(newSwingHigh, timeframeName, labelColor);
+                        }
+                        else if (showSwingLabels && newSwingHigh.Type != null)
+                        {
+                            Print($"Label NOT drawn - State is {State} (need Realtime or Transition)");
                         }
                     }
                 }
@@ -1545,12 +1555,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ClassifySwingPoint(newSwingLow, swingHistory);
 
                         swingHistory.Add(newSwingLow);
-                        Print($"Swing Filter ({timeframeName}): New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, TF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}");
+                        Print($"Swing Filter ({timeframeName}): New Swing LOW at {swingLow.Value:F2}, Type: {newSwingLow.Type}, TF Bar: {CurrentBars[barsIndex]}, Primary Bar: {CurrentBar}, State: {State}");
 
-                        // Draw label on primary chart (only on the first bar of HTF period)
-                        if (showSwingLabels && newSwingLow.Type != null)
+                        // Draw label on primary chart (only when not historical processing)
+                        if (showSwingLabels && newSwingLow.Type != null && State != State.Historical)
                         {
                             DrawSwingLabel(newSwingLow, timeframeName, labelColor);
+                        }
+                        else if (showSwingLabels && newSwingLow.Type != null)
+                        {
+                            Print($"Label NOT drawn - State is {State} (need Realtime or Transition)");
                         }
                     }
                 }
@@ -1583,15 +1597,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // CRITICAL: Use PrimaryBarIndex to draw on the primary chart (first bar of HTF period)
                 int barsAgo = CurrentBar - swingPoint.PrimaryBarIndex;
 
+                Print($"ATTEMPTING to draw {labelText} label: barsAgo={barsAgo}, PrimaryBar={swingPoint.PrimaryBarIndex}, CurrentBar={CurrentBar}, Price={swingPoint.Price:F2}, yPixelOffset={yPixelOffset}");
+
                 // Draw text label with correct Draw.Text signature
                 // Draw.Text(owner, tag, isAutoScale, text, barsAgo, y, yPixelOffset, brush, font, alignment, outlineBrush, areaBrush, areaOpacity)
                 Draw.Text(this, tag, false, labelText, barsAgo, swingPoint.Price, yPixelOffset, labelColor, new SimpleFont("Arial", 10), TextAlignment.Center, Brushes.Transparent, Brushes.Transparent, 0);
 
-                Print($"Drew {labelText} label at barsAgo {barsAgo} (primary bar {swingPoint.PrimaryBarIndex}), price {swingPoint.Price:F2}, color {labelColor}");
+                Print($"SUCCESS: Drew {labelText} label with tag '{tag}', color {labelColor}");
             }
             catch (Exception ex)
             {
-                Print($"Error drawing swing label: {ex.Message}");
+                Print($"ERROR drawing swing label: {ex.Message}");
+                Print($"Stack trace: {ex.StackTrace}");
             }
         }
 
