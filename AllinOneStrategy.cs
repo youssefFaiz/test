@@ -116,6 +116,10 @@ namespace NinjaTrader.NinjaScript.Strategies
         private int filter30MinIndex = -1;
         private int filterCustomIndex = -1;
 
+        // SMT Symbol indices
+        private int smtSymbol1Index = -1;
+        private int smtSymbol2Index = -1;
+
         // ===== 019. Swing Points Filter Settings =====
         private bool useSwingPointsFilter = false;
         private int swingPointsLastCount = 8;        // Number of last swing points to check
@@ -571,6 +575,27 @@ namespace NinjaTrader.NinjaScript.Strategies
                         AddDataSeries(BarsPeriodType.Minute, customTimeframeMinutes);
                         filterCustomIndex = nextIndex++;
                     }
+
+                    // ===== Add SMT Symbol Data Series =====
+                    // Add comparison symbols for SMT filter if enabled
+                    if (useSMTDivergenceFilter)
+                    {
+                        if (smtUseSymbol1 && !string.IsNullOrEmpty(smtSymbol1Name))
+                        {
+                            // Add Symbol1 with same timeframe as chart
+                            AddDataSeries(smtSymbol1Name, BarsPeriod);
+                            smtSymbol1Index = nextIndex++;
+                            Print($"SMT Config: Added Symbol1 '{smtSymbol1Name}' at BarsArray[{smtSymbol1Index}]");
+                        }
+
+                        if (smtUseSymbol2 && !string.IsNullOrEmpty(smtSymbol2Name))
+                        {
+                            // Add Symbol2 with same timeframe as chart
+                            AddDataSeries(smtSymbol2Name, BarsPeriod);
+                            smtSymbol2Index = nextIndex++;
+                            Print($"SMT Config: Added Symbol2 '{smtSymbol2Name}' at BarsArray[{smtSymbol2Index}]");
+                        }
+                    }
                 }
             }
             else if (State == State.DataLoaded)
@@ -656,6 +681,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (useSMTDivergenceFilter)
                 {
                     Print("=== SMT-Divergence Filter Initialization ===");
+                    Print($"SMT Symbol1 Index: {smtSymbol1Index}, Symbol2 Index: {smtSymbol2Index}");
 
                     // Chart timeframe (always primary series index 0)
                     if (useChartTimeframe)
@@ -664,6 +690,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol2, smtSymbol2Name, smtCandleDirectionValidation, smtRemoveBrokenSMTs,
                             smtShortSignalBars, smtLongSignalBars, smtSwingHighColor, smtSwingLowColor,
                             smtLineWidth, smtLabelTextColor);
+
+                        // Set symbol indices so indicator uses strategy's data series
+                        if (smtSymbol1Index > 0)
+                            smtFilterChart.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0)
+                            smtFilterChart.SetSymbol2Index(smtSymbol2Index);
 
                         if (showSMTIndicator)
                             AddChartIndicator(smtFilterChart);
@@ -678,6 +710,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
                             smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
                             smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        if (smtSymbol1Index > 0) smtFilter1Min.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0) smtFilter1Min.SetSymbol2Index(smtSymbol2Index);
                         Print($"Filter: Initialized 1-Min SMT-Divergence on BarsArray[{filter1MinIndex}]");
                     }
 
@@ -687,6 +721,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
                             smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
                             smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        if (smtSymbol1Index > 0) smtFilter2Min.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0) smtFilter2Min.SetSymbol2Index(smtSymbol2Index);
                         Print($"Filter: Initialized 2-Min SMT-Divergence on BarsArray[{filter2MinIndex}]");
                     }
 
@@ -696,6 +732,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
                             smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
                             smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        if (smtSymbol1Index > 0) smtFilter3Min.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0) smtFilter3Min.SetSymbol2Index(smtSymbol2Index);
                         Print($"Filter: Initialized 3-Min SMT-Divergence on BarsArray[{filter3MinIndex}]");
                     }
 
@@ -705,6 +743,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
                             smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
                             smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        if (smtSymbol1Index > 0) smtFilter5Min.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0) smtFilter5Min.SetSymbol2Index(smtSymbol2Index);
                         Print($"Filter: Initialized 5-Min SMT-Divergence on BarsArray[{filter5MinIndex}]");
                     }
 
@@ -714,6 +754,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
                             smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
                             smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        if (smtSymbol1Index > 0) smtFilter15Min.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0) smtFilter15Min.SetSymbol2Index(smtSymbol2Index);
                         Print($"Filter: Initialized 15-Min SMT-Divergence on BarsArray[{filter15MinIndex}]");
                     }
 
@@ -723,6 +765,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
                             smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
                             smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        if (smtSymbol1Index > 0) smtFilter30Min.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0) smtFilter30Min.SetSymbol2Index(smtSymbol2Index);
                         Print($"Filter: Initialized 30-Min SMT-Divergence on BarsArray[{filter30MinIndex}]");
                     }
 
@@ -732,6 +776,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                             smtUseSymbol1, smtSymbol1Name, smtUseSymbol2, smtSymbol2Name,
                             smtCandleDirectionValidation, smtRemoveBrokenSMTs, smtShortSignalBars,
                             smtLongSignalBars, smtSwingHighColor, smtSwingLowColor, smtLineWidth, smtLabelTextColor);
+                        if (smtSymbol1Index > 0) smtFilterCustom.SetSymbol1Index(smtSymbol1Index);
+                        if (smtSymbol2Index > 0) smtFilterCustom.SetSymbol2Index(smtSymbol2Index);
                         Print($"Filter: Initialized Custom {customTimeframeMinutes}-Min SMT-Divergence on BarsArray[{filterCustomIndex}]");
                     }
                 }

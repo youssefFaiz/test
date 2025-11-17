@@ -156,19 +156,26 @@ namespace NinjaTrader.NinjaScript.Indicators
             }
             else if (State == State.Configure)
             {
-                // Add data series for comparison symbols
-                if (UseSymbol1 && !string.IsNullOrEmpty(Symbol1Name))
+                // Only add data series if running as standalone indicator (on chart)
+                // When called from a strategy, the strategy must add these data series
+                if (ChartControl != null)
                 {
-                    AddDataSeries(Symbol1Name, BarsPeriod);
-                    symbol1Index = 1;
-                }
+                    // Add data series for comparison symbols
+                    if (UseSymbol1 && !string.IsNullOrEmpty(Symbol1Name))
+                    {
+                        AddDataSeries(Symbol1Name, BarsPeriod);
+                        symbol1Index = 1;
+                    }
 
-                if (UseSymbol2 && !string.IsNullOrEmpty(Symbol2Name))
-                {
-                    int nextIndex = UseSymbol1 ? 2 : 1;
-                    AddDataSeries(Symbol2Name, BarsPeriod);
-                    symbol2Index = nextIndex;
+                    if (UseSymbol2 && !string.IsNullOrEmpty(Symbol2Name))
+                    {
+                        int nextIndex = UseSymbol1 ? 2 : 1;
+                        AddDataSeries(Symbol2Name, BarsPeriod);
+                        symbol2Index = nextIndex;
+                    }
                 }
+                // When called from strategy, data series are already loaded
+                // Strategy will need to configure these indices appropriately
             }
             else if (State == State.DataLoaded)
             {
@@ -746,6 +753,21 @@ namespace NinjaTrader.NinjaScript.Indicators
         public Series<double> LongSignal
         {
             get { return Values[1]; }
+        }
+
+        // NEW: Methods to configure symbol indices when called from strategy
+        [Browsable(false)]
+        [XmlIgnore]
+        public void SetSymbol1Index(int index)
+        {
+            symbol1Index = index;
+        }
+
+        [Browsable(false)]
+        [XmlIgnore]
+        public void SetSymbol2Index(int index)
+        {
+            symbol2Index = index;
         }
 
         #endregion
