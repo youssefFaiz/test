@@ -2028,8 +2028,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print($"SMT: HIGH DIVERGENCE DETECTED at Bar {CurrentBar}, Price {swingHigh.Value:F2}");
                 }
 
-                // Draw label (checks if counters increased to show symbol name)
-                if (showSMTIndicator && State != State.Historical)
+                // Draw label if divergence detected (matches original indicator line 301)
+                // The label method internally checks if counters increased
+                if (showSMTIndicator)
                 {
                     DrawSMTDivergenceLabel(true, newHigh);
                 }
@@ -2074,8 +2075,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print($"SMT: LOW DIVERGENCE DETECTED at Bar {CurrentBar}, Price {swingLow.Value:F2}");
                 }
 
-                // Draw label (checks if counters increased to show symbol name)
-                if (showSMTIndicator && State != State.Historical)
+                // Draw label if divergence detected (matches original indicator line 337)
+                // The label method internally checks if counters increased
+                if (showSMTIndicator)
                 {
                     DrawSMTDivergenceLabel(false, newLow);
                 }
